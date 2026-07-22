@@ -74,7 +74,7 @@ async function seed() {
     }
   }
 
-  console.log("\nSeed concluído. Senha inicial: mdhcodk123")
+  console.log("\nSeed concluído. Senha inicial: ...")
 }
 
 seed().catch(console.error)
