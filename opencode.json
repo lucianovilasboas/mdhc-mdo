@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    ".opencode/plugins/graphify.js"
+  ],
+  "model": "opencode/deepseek-v4-flash-free",
+  "permission": {
+    "skill": {
+      "notificar-telegram": "allow",
+      "autorizacao-odk": "allow",
+      "consultar-odk": "allow",
+      "gerenciar-entidades-odk": "allow",
+      "gerenciar-usuarios-odk": "allow",
+      "backup-odk": "allow",
+      "merge-dados-odk": "allow",
+      "gerenciar-formularios-odk": "allow",
+      "exportar-dados-odk": "allow",
+      "agentes-csv-odk": "allow",
+      "verificar-importacao-odk": "allow",
+      "minhas-loterias": "allow"
+    },
+    "mcp_tools": {
+      "mcp-odk-mdhc": "allow",
+      "huggingface-mcp": "allow"
+    }
+  },
+  "mcp": {
+    "mcp-odk-mdhc": {
+      "type": "local",
+      "enabled": true,
+      "command": ["/mnt/DATA/Dev/mcps/odk/.venv/bin/python", "/mnt/DATA/Dev/mcps/odk/server.py"],
+      "environment": {
+        "ODK_PROJECT_DIR": "/mnt/DATA/Dev/ODK/odk_mdhc",
+        "PYTHONPATH": "/mnt/DATA/Dev/ODK/odk_mdhc"
+      }
+    },
+    "huggingface-mcp": {
+      "type": "remote",
+      "url": "https://huggingface.co/mcp",
+      "enabled": true
+    }
+  }
+}

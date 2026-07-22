@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3051:3051"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env.local
+    restart: unless-stopped
