@@ -27,7 +27,7 @@ export function DashboardHeader({ userName, userRole, userProjectId }: Dashboard
           <div className="hidden md:flex items-center gap-3">
             <ProjectFilter allowedProjectId={userRole === "admin" ? null : userProjectId} />
             <span className="text-sm text-muted-foreground whitespace-nowrap">{userName}</span>
-            <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>Sair</Button>
+            <Button variant="outline" size="sm" onClick={() => signOut({ redirect: false }).then(() => { window.location.href = "/login" })}>Sair</Button>
           </div>
 
           <button
@@ -44,7 +44,7 @@ export function DashboardHeader({ userName, userRole, userProjectId }: Dashboard
             <p className="text-sm text-muted-foreground mb-3">Dashboard de Acompanhamento — MDHC</p>
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground truncate">{userName}</span>
-              <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>Sair</Button>
+              <Button variant="outline" size="sm" onClick={() => signOut({ redirect: false }).then(() => { window.location.href = "/login" })}>Sair</Button>
             </div>
           </div>
         )}
