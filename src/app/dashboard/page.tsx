@@ -30,15 +30,18 @@ export default async function DashboardPage({
     : undefined
   const selectedProjectId = restrictedProjectId || (projeto ? Number(projeto) : undefined)
 
-  const [kpis, timeline, cityStats, agentRanking, demographics, rightsIndicators, rightsByCity] =
+  const kpis = await getKPIs(selectedProjectId).catch(() => null)
+
+  const [timeline, cityStats, agentRanking, demographics, rightsIndicators, rightsByCity] =
     await Promise.all([
-      getKPIs(selectedProjectId).catch(() => null),
       getSubmissionsTimeline(selectedProjectId).catch(() => []),
       getCityStats(selectedProjectId).catch(() => []),
       getAgentRanking(selectedProjectId).catch(() => []),
       getDemographics(selectedProjectId).catch(() => null),
       getRightsIndicators(selectedProjectId).catch(() => []),
-      getRightsIndicatorsByCity(selectedProjectId).catch(() => []),
+      kpis?.totalParte2
+        ? getRightsIndicatorsByCity(selectedProjectId).catch(() => [])
+        : [],
     ])
 
   const projects = await fetchActiveProjects()

@@ -20,27 +20,63 @@ async function getToken(): Promise<string> {
   return _token!
 }
 
-async function odkFetch(path: string, init?: RequestInit) {
+const inflight = new Map<string, Promise<any>>()
+const NEGATIVE_TTL = 5 * 60 * 1000
+const NEGATIVE_CACHE_PREFIX = "__404__"
+
+function isNegativeCached(path: string): boolean {
+  const entry = getCached(NEGATIVE_CACHE_PREFIX + path)
+  if (entry !== null) return true
+  return false
+}
+
+function setNegativeCache(path: string): void {
+  setCache(NEGATIVE_CACHE_PREFIX + path, null, NEGATIVE_TTL)
+}
+
+async function odkFetch(path: string, init?: RequestInit): Promise<any> {
+  if (isNegativeCached(path)) {
+    throw new Error(`ODK API cached 404: ${path}`)
+  }
+
   const cached = getCached(path)
   if (cached) return cached
 
-  const token = await getToken()
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      ...init?.headers,
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  })
-  log("odk", `${res.status} ${path}`)
-  if (!res.ok) {
-    if (res.status === 401) { _token = null; return odkFetch(path, init) }
-    throw new Error(`ODK API error ${res.status}: ${await res.text()}`)
+  if (inflight.has(path)) {
+    log("odk", "DEDUP", path)
+    return inflight.get(path)
   }
-  const data = await res.json()
-  setCache(path, data)
-  return data
+
+  const promise = (async () => {
+    try {
+      const token = await getToken()
+      const res = await fetch(`${BASE_URL}${path}`, {
+        ...init,
+        headers: {
+          ...init?.headers,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      log("odk", `${res.status} ${path}`)
+      if (!res.ok) {
+        if (res.status === 401) { _token = null; return odkFetch(path, init) }
+        if (res.status === 404) {
+          setNegativeCache(path)
+          throw new Error(`ODK API error 404: ${await res.text()}`)
+        }
+        throw new Error(`ODK API error ${res.status}: ${await res.text()}`)
+      }
+      const data = await res.json()
+      setCache(path, data)
+      return data
+    } finally {
+      inflight.delete(path)
+    }
+  })()
+
+  inflight.set(path, promise)
+  return promise
 }
 
 export async function queryOData(
