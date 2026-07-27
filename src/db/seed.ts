@@ -51,6 +51,9 @@ async function seed() {
     { id: "6", name: "Thays Pascoal", email: "thays.pascoal@mdh.gov.br", role: "admin", projectId: null },
     { id: "7", name: "Fábio Macedo", email: "fabio.macedo@ifrj.edu.br", role: "admin", projectId: null },
     { id: "8", name: "Suzi Miziara", email: "suzi.barbosa@ufms.br", role: "user", projectId: "6" },
+    { id: "9", name: "Paulo Dutra", email: "paulo.dutra@ifms.edu.br", role: "user", projectId: "5" },
+    { id: "10", name: "Ronald Cavalcanti", email: "ronald.cavalcanti@ufpe.br", role: "user", projectId: "8" },
+    { id: "11", name: "Lívia Basile", email: "liviabasile@ufgd.edu.br", role: "user", projectId: "7" },
   ]
 
   for (const u of usuarios) {
