@@ -8,4 +8,5 @@ export const users = sqliteTable("users", {
   role: text("role").default("viewer").notNull(),
   projectId: text("project_id"),
   createdAt: text("created_at").default("datetime('now')").notNull(),
+  lastLogin: text("last_login"),
 })
