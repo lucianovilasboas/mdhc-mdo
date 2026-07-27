@@ -1,4 +1,4 @@
-import { queryOData, getEntities, ACTIVE_PROJECTS, PROJECT_CITIES } from "./odk"
+import { queryOData, getEntities, ActiveProject, fetchActiveProjects, fetchProjectFormIds, PROJECT_CITIES } from "./odk"
 import { log } from "./logger"
 import type {
   TimelinePoint, CityStat, AgentStat, DemographicProfile,
@@ -35,45 +35,54 @@ function label(category: string, key: string) {
   return LABEL_MAP[category]?.[key] ?? key
 }
 
-function getProjects(projectId?: number) {
+async function getProjects(projectId?: number): Promise<ActiveProject[]> {
+  const all = await fetchActiveProjects()
   return projectId
-    ? ACTIVE_PROJECTS.filter((p) => p.id === projectId)
-    : [...ACTIVE_PROJECTS]
+    ? all.filter((p) => p.id === projectId)
+    : all
 }
 
 export async function getKPIs(projectId?: number) {
-  const projects = getProjects(projectId)
+  const projects = await getProjects(projectId)
   let totalIdosos = 0
   let totalParte1 = 0
   let totalParte2 = 0
   let totalAgents = 0
-  const perProject: Record<number, { submissions: number; parte1: number; parte2: number; agents: number }> = {}
+  let lastSubmissionDate: string | null = null
+  const perProject: Record<number, { submissions: number; parte1: number; parte2: number; agents: number; idosos: number }> = {}
 
   for (const p of projects) {
     try {
-      const [p1, p2, entities] = await Promise.all([
-        queryOData(p.id, "form_parte_1", 1),
-        queryOData(p.id, "form_parte_2", 1),
+      const [p1, p2, agents, idosos] = await Promise.all([
+        queryOData(p.id, "form_parte_1", 1).catch(() => ({ "@odata.count": 0 })),
+        queryOData(p.id, "form_parte_2", 1).catch(() => ({ "@odata.count": 0 })),
         getEntities(p.id, "Agentes").catch(() => []),
+        getEntities(p.id, "pessoas_idosas").catch(() => []),
       ])
       const c1 = p1["@odata.count"] ?? 0
       const c2 = p2["@odata.count"] ?? 0
-      const agentCount = entities.length
+      const agentCount = agents.length
+      const idosoCount = idosos.length || c1
       totalParte1 += c1
       totalParte2 += c2
-      totalIdosos += c1
+      totalIdosos += idosoCount
       totalAgents += agentCount
-      perProject[p.id] = { submissions: c1 + c2, parte1: c1, parte2: c2, agents: agentCount }
+      perProject[p.id] = { submissions: c1 + c2, parte1: c1, parte2: c2, agents: agentCount, idosos: idosoCount }
+
+      for (const d of [p1, p2]) {
+        const sd = d.value?.[0]?.__system?.submissionDate
+        if (sd && (!lastSubmissionDate || sd > lastSubmissionDate)) lastSubmissionDate = sd
+      }
     } catch {
-      perProject[p.id] = { submissions: 0, parte1: 0, parte2: 0, agents: 0 }
+      perProject[p.id] = { submissions: 0, parte1: 0, parte2: 0, agents: 0, idosos: 0 }
     }
   }
 
   const totalCities = projects.reduce(
-    (acc, p) => acc + (PROJECT_CITIES[p.id]?.length ?? 0), 0
+    (acc, p) => acc + (PROJECT_CITIES[p.id]?.length ?? 1), 0
   )
 
-  log("stats", "getKPIs", { projects: projects.length, totalIdosos, totalParte1, totalParte2, totalAgents })
+  log("stats", "getKPIs", { projects: projects.length, totalIdosos, totalParte1, totalParte2, totalAgents, lastSubmissionDate })
 
   return {
     totalIdosos,
@@ -83,12 +92,13 @@ export async function getKPIs(projectId?: number) {
     totalProjects: projects.length,
     totalCities,
     totalAgents,
+    lastSubmissionDate,
     perProject,
   }
 }
 
 export async function getSubmissionsTimeline(projectId?: number): Promise<TimelinePoint[]> {
-  const projects = getProjects(projectId)
+  const projects = await getProjects(projectId)
   const daily: Record<string, TimelinePoint> = {}
 
   for (const p of projects) {
@@ -117,25 +127,28 @@ export async function getSubmissionsTimeline(projectId?: number): Promise<Timeli
 }
 
 export async function getCityStats(projectId?: number): Promise<CityStat[]> {
-  const projects = getProjects(projectId)
+  const projects = await getProjects(projectId)
   const stats: Record<string, CityStat> = {}
 
   for (const p of projects) {
     try {
-      const data = await queryOData(p.id, "form_parte_1", 500)
-      const values = data.value ?? []
-      const cityCount: Record<string, number> = {}
-      for (const v of values) {
-        const city = v.preliminar?.municipio_nome || v.preliminar?.municipio || "desconhecido"
-        cityCount[city] = (cityCount[city] || 0) + 1
+      const entities = await getEntities(p.id, "pessoas_idosas").catch(() => [])
+      const cityCount: Record<string, { count: number; uf: string }> = {}
+      for (const e of entities) {
+        const label = (e.currentVersion?.label as string) || ""
+        const afterPipe = label.split("|")[1] || ""
+        const match = afterPipe.match(/.*-([^/]+)\/([a-z]{2,3})$/i)
+        const city = match?.[1]?.trim() || "desconhecido"
+        const uf = (match?.[2]?.toUpperCase()) || ""
+        if (!cityCount[city]) cityCount[city] = { count: 0, uf }
+        cityCount[city].count++
       }
-      for (const [city, count] of Object.entries(cityCount)) {
+      for (const [city, info] of Object.entries(cityCount)) {
         const key = `${p.id}-${city}`
-        const cityUf = PROJECT_CITIES[p.id]?.find((c) => c.city === city)?.uf || ""
         stats[key] = {
           projectId: p.id, projectName: p.name,
-          city, uf: cityUf,
-          submissions: count, agents: 0,
+          city, uf: info.uf,
+          submissions: info.count, agents: 0,
         }
       }
     } catch {
@@ -147,7 +160,7 @@ export async function getCityStats(projectId?: number): Promise<CityStat[]> {
 }
 
 export async function getAgentRanking(projectId?: number): Promise<AgentStat[]> {
-  const projects = getProjects(projectId)
+  const projects = await getProjects(projectId)
   const agentMap: Record<string, AgentStat> = {}
 
   // Build canonical name lookup from Agentes entities for each project
@@ -197,11 +210,10 @@ export async function getAgentRanking(projectId?: number): Promise<AgentStat[]> 
 
   return Object.values(agentMap)
     .sort((a, b) => b.submissions - a.submissions)
-    .slice(0, 20)
 }
 
 export async function getDemographics(projectId?: number): Promise<DemographicProfile> {
-  const projects = getProjects(projectId)
+  const projects = await getProjects(projectId)
   const idade: Record<string, number> = { "60-69": 0, "70-79": 0, "80+": 0 }
   const genero: Record<string, number> = {}
   const cor_etnia: Record<string, number> = {}
@@ -302,7 +314,7 @@ function rightsFromTotals(totals: Record<string, { sim: number; nao: number; tot
 }
 
 export async function getRightsIndicators(projectId?: number): Promise<RightsIndicator[]> {
-  const projects = getProjects(projectId)
+  const projects = await getProjects(projectId)
   const rights: Record<string, { sim: number; nao: number; total: number }> = {}
 
   for (const f of RIGHTS_FIELDS) {
@@ -328,7 +340,7 @@ export async function getRightsIndicators(projectId?: number): Promise<RightsInd
 }
 
 export async function getRightsIndicatorsByCity(projectId?: number): Promise<{ city: string; projectName: string; projectId: number; indicators: RightsIndicator[] }[]> {
-  const projects = getProjects(projectId)
+  const projects = await getProjects(projectId)
   const cityMap: Record<string, { city: string; projectName: string; projectId: number; totals: Record<string, { sim: number; nao: number; total: number }> }> = {}
 
   for (const p of projects) {

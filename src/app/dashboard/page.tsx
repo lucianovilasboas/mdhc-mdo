@@ -14,7 +14,7 @@ import {
   getAgentRanking, getDemographics, getRightsIndicators,
   getRightsIndicatorsByCity,
 } from "@/lib/stats"
-import { PROJECT_CITIES, ACTIVE_PROJECTS } from "@/lib/odk"
+import { fetchActiveProjects } from "@/lib/odk"
 import { auth } from "@/lib/auth"
 
 export default async function DashboardPage({
@@ -41,30 +41,43 @@ export default async function DashboardPage({
       getRightsIndicatorsByCity(selectedProjectId).catch(() => []),
     ])
 
-  const projects = selectedProjectId
-    ? ACTIVE_PROJECTS.filter((p) => p.id === selectedProjectId)
-    : [...ACTIVE_PROJECTS]
+  const projects = await fetchActiveProjects()
+  const allProjects = selectedProjectId
+    ? projects.filter((p) => p.id === selectedProjectId)
+    : projects
 
-  const projectRows = projects.map((p) => {
-    const cities = PROJECT_CITIES[p.id]?.map((c) => c.city).join(", ") || ""
-    const ufs = [...new Set(PROJECT_CITIES[p.id]?.map((c) => c.uf) || [])].join("/")
+  const cityByProject: Record<number, { cities: string; ufs: string }> = {}
+  for (const cs of cityStats) {
+    if (!cityByProject[cs.projectId]) cityByProject[cs.projectId] = { cities: "", ufs: "" }
+  }
+  for (const cs of cityStats) {
+    const entry = cityByProject[cs.projectId]
+    if (entry) {
+      if (!entry.cities.includes(cs.city)) entry.cities += (entry.cities ? ", " : "") + cs.city
+      if (!entry.ufs.includes(cs.uf)) entry.ufs += (entry.ufs ? "/" : "") + cs.uf
+    }
+  }
+
+  const projectRows = allProjects.map((p) => {
+    const info = cityByProject[p.id]
     return {
       id: p.id,
       name: p.name,
-      cities,
-      uf: ufs || p.uf,
+      cities: info?.cities || "",
+      uf: info?.ufs || p.uf,
       status: (p.id === 5 || p.id === 6 ? "ativo" : "implantacao") as "ativo" | "implantacao",
-      submissions: kpis?.perProject?.[p.id]?.submissions ?? 0,
+      parte1: kpis?.perProject?.[p.id]?.parte1 ?? 0,
+      parte2: kpis?.perProject?.[p.id]?.parte2 ?? 0,
       agents: kpis?.perProject?.[p.id]?.agents ?? 0,
+      idosos: kpis?.perProject?.[p.id]?.idosos ?? 0,
     }
   })
+  projectRows.sort((a, b) => (b.parte1 + b.parte2) - (a.parte1 + a.parte2))
 
-  const ufsCount = new Set(projects.flatMap((p) =>
-    PROJECT_CITIES[p.id]?.map((c) => c.uf) || []
-  )).size
+  const ufsCount = new Set(cityStats.map((cs) => cs.uf).filter(Boolean)).size
 
   const selectedProject = selectedProjectId
-    ? ACTIVE_PROJECTS.find((p) => p.id === selectedProjectId)
+    ? projects.find((p) => p.id === selectedProjectId)
     : undefined
 
   return (
@@ -82,6 +95,8 @@ export default async function DashboardPage({
             totalProjects={kpis.totalProjects}
             totalCities={kpis.totalCities}
             totalUfs={ufsCount}
+            totalForms={kpis.totalSubmissions}
+            lastSubmission={kpis.lastSubmissionDate}
           />
         )}
 

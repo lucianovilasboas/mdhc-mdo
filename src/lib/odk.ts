@@ -105,6 +105,45 @@ export async function getProjects() {
   return odkFetch("/v1/projects")
 }
 
+export interface ActiveProject {
+  id: number
+  name: string
+  uf: string
+}
+
+let _projCache: { data: ActiveProject[]; ts: number } | null = null
+
+export async function fetchActiveProjects(): Promise<ActiveProject[]> {
+  const now = Date.now()
+  if (_projCache && now - _projCache.ts < 300_000) return _projCache.data
+  try {
+    const data: any[] = await getProjects()
+    const list = data.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, uf: "" }))
+    list.sort((a, b) => b.id - a.id)
+    _projCache = { data: list, ts: now }
+    return list
+  } catch {
+    return [...ACTIVE_PROJECTS]
+  }
+}
+
+let _formsCache: Record<number, { data: string[]; ts: number }> = {}
+
+export async function fetchProjectFormIds(projectId: number): Promise<string[]> {
+  const cached = _formsCache[projectId]
+  if (cached && Date.now() - cached.ts < 300_000) return cached.data
+  try {
+    const data: any[] = await getProjectForms(projectId)
+    const ids = data.map((f) => f.xmlFormId)
+    const parte = ids.filter((id) => id.startsWith("form_parte"))
+    const result = parte.length > 0 ? parte : ids
+    _formsCache[projectId] = { data: result, ts: Date.now() }
+    return result
+  } catch {
+    return ["form_parte_1", "form_parte_2"]
+  }
+}
+
 export const ACTIVE_PROJECTS = [
   { id: 5, name: "IFMS", uf: "MS" },
   { id: 6, name: "UFMS", uf: "MS" },

@@ -23,7 +23,7 @@ export function CityDistribution({ data }: CityDistributionProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Submissões por Município</CardTitle>
+        <CardTitle className="text-lg">Pessoas Idosas por Município</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
@@ -37,7 +37,7 @@ export function CityDistribution({ data }: CityDistributionProps) {
               width={120}
             />
             <Tooltip
-              formatter={(value: number) => [`${value} submissões`]}
+              formatter={(value: number) => [`${value} pessoas idosas`]}
               labelFormatter={(label: string) => `${label}`}
             />
             <Bar dataKey="submissions" radius={[0, 4, 4, 0]}>

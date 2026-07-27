@@ -2,7 +2,8 @@
 
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { ACTIVE_PROJECTS } from "@/lib/odk"
+import { useEffect, useState } from "react"
+import type { ActiveProject } from "@/lib/odk"
 
 interface ProjectFilterProps {
   allowedProjectId?: string | null
@@ -11,9 +12,19 @@ interface ProjectFilterProps {
 export function ProjectFilter({ allowedProjectId }: ProjectFilterProps) {
   const searchParams = useSearchParams()
   const current = searchParams.get("projeto") || ""
+  const [projects, setProjects] = useState<ActiveProject[]>([])
+
+  useEffect(() => {
+    fetch("/api/odk/projects")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setProjects(data)
+      })
+      .catch(() => {})
+  }, [])
 
   if (allowedProjectId) {
-    const project = ACTIVE_PROJECTS.find((p) => String(p.id) === allowedProjectId)
+    const project = projects.find((p) => String(p.id) === allowedProjectId)
     return (
       <span className="text-sm font-medium text-muted-foreground">
         {project?.name ?? `Projeto ${allowedProjectId}`}
@@ -32,7 +43,7 @@ export function ProjectFilter({ allowedProjectId }: ProjectFilterProps) {
       className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       <option value="">Todos os Projetos</option>
-      {ACTIVE_PROJECTS.map((p) => (
+      {projects.map((p) => (
         <option key={p.id} value={p.id}>{p.name}</option>
       ))}
     </select>

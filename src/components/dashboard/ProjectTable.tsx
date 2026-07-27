@@ -10,8 +10,10 @@ interface ProjectRow {
   cities: string
   uf: string
   status: "ativo" | "implantacao"
-  submissions: number
+  parte1: number
+  parte2: number
   agents: number
+  idosos: number
 }
 
 export function ProjectTable({ data, selectedProjectId }: { data: ProjectRow[]; selectedProjectId?: number }) {
@@ -30,8 +32,10 @@ export function ProjectTable({ data, selectedProjectId }: { data: ProjectRow[]; 
               <TableHead>Municípios</TableHead>
               <TableHead>UF</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Submissões</TableHead>
+              <TableHead className="text-right">Form. 1</TableHead>
+              <TableHead className="text-right">Form. 2</TableHead>
               <TableHead className="text-right">Agentes</TableHead>
+              <TableHead className="text-right">Pessoas Idosas</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -39,7 +43,7 @@ export function ProjectTable({ data, selectedProjectId }: { data: ProjectRow[]; 
               <TableRow key={p.id} className={selectedProjectId ? "bg-muted/50" : ""}>
                 <TableCell className="font-medium">{p.name}</TableCell>
                 <TableCell>{p.cities}</TableCell>
-                <TableCell>{p.uf}</TableCell>
+                <TableCell>{p.uf.toUpperCase()}</TableCell>
                 <TableCell>
                   <Badge
                     variant={p.status === "ativo" ? "default" : "secondary"}
@@ -48,8 +52,10 @@ export function ProjectTable({ data, selectedProjectId }: { data: ProjectRow[]; 
                     {p.status === "ativo" ? "Ativo" : "Implantação"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">{p.submissions}</TableCell>
+                <TableCell className="text-right">{p.parte1}</TableCell>
+                <TableCell className="text-right">{p.parte2}</TableCell>
                 <TableCell className="text-right">{p.agents}</TableCell>
+                <TableCell className="text-right">{p.idosos}</TableCell>
               </TableRow>
             ))}
           </TableBody>
