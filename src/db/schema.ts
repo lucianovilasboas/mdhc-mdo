@@ -1,4 +1,4 @@
-import { sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core"
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -9,4 +9,5 @@ export const users = sqliteTable("users", {
   projectId: text("project_id"),
   createdAt: text("created_at").default("datetime('now')").notNull(),
   lastLogin: text("last_login"),
+  loginCount: integer("login_count").default(0).notNull(),
 })

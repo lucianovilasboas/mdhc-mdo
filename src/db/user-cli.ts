@@ -48,10 +48,10 @@ async function main() {
       console.log("Nenhum usuario cadastrado.")
       return
     }
-    console.log("ID | Nome | Email | Funcao | Projeto | Ultimo Login")
-    console.log("-".repeat(90))
+    console.log("ID | Nome | Email | Funcao | Projeto | Ultimo Login | Logins")
+    console.log("-".repeat(100))
     for (const u of rows) {
-      console.log(`${u.id} | ${u.name} | ${u.email} | ${u.role} | ${u.projectId ?? "-"} | ${u.lastLogin ?? "-"}`)
+      console.log(`${u.id} | ${u.name} | ${u.email} | ${u.role} | ${u.projectId ?? "-"} | ${u.lastLogin ?? "-"} | ${u.loginCount ?? 0}`)
     }
     return
   }

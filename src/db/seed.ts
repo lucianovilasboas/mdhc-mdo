@@ -1,7 +1,7 @@
 import Database from "better-sqlite3"
 import { drizzle } from "drizzle-orm/better-sqlite3"
 import { sql } from "drizzle-orm"
-import { sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core"
 import bcrypt from "bcryptjs"
 import path from "path"
 import fs from "fs"
@@ -14,6 +14,8 @@ const users = sqliteTable("users", {
   role: text("role").default("viewer").notNull(),
   projectId: text("project_id"),
   createdAt: text("created_at").default("datetime('now')").notNull(),
+  lastLogin: text("last_login"),
+  loginCount: integer("login_count").default(0).notNull(),
 })
 
 const dbDir = path.resolve(process.cwd(), "data")
@@ -26,15 +28,16 @@ sqlite.pragma("foreign_keys = ON")
 const db = drizzle(sqlite)
 
 async function seed() {
-  db.run(sql`DROP TABLE IF EXISTS users`)
-  db.run(sql`CREATE TABLE users (
+  db.run(sql`CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     role TEXT DEFAULT 'viewer' NOT NULL,
     project_id TEXT,
-    created_at TEXT DEFAULT (datetime('now')) NOT NULL
+    created_at TEXT DEFAULT (datetime('now')) NOT NULL,
+    last_login TEXT,
+    login_count INTEGER DEFAULT 0 NOT NULL
   )`)
 
   const hash = await bcrypt.hash("mdhcodk123", 10)

@@ -56,7 +56,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           if (!match) return null
 
           db.update(users)
-            .set({ lastLogin: sql`datetime('now')` })
+            .set({
+              lastLogin: sql`datetime('now')`,
+              loginCount: sql`COALESCE(login_count, 0) + 1`,
+            })
             .where(eq(users.email, email))
             .run()
 
