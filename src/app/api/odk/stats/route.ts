@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(kpis)
       }
       case "timeline": {
-        const data = await getSubmissionsTimeline()
+        const cidade = req.nextUrl.searchParams.get("cidade") || undefined
+        const data = await getSubmissionsTimeline(undefined, cidade)
         return NextResponse.json(data)
       }
       case "by-city": {

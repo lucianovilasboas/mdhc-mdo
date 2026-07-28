@@ -104,7 +104,12 @@ export default async function DashboardPage({
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {timeline.length > 0 && <SubmissionsChart data={timeline} />}
+          {timeline.length > 0 && (
+            <SubmissionsChart
+              data={timeline}
+              availableCities={[...new Set(cityStats.map((cs) => cs.city))].sort()}
+            />
+          )}
           {cityStats.length > 0 && <CityDistribution data={cityStats} />}
         </div>
 

@@ -1,4 +1,5 @@
 import { queryOData, getEntities, ActiveProject, fetchActiveProjects, fetchProjectFormIds, PROJECT_CITIES } from "./odk"
+import { getCached, setCache } from "./cache"
 import { log } from "./logger"
 import type {
   TimelinePoint, CityStat, AgentStat, DemographicProfile,
@@ -97,16 +98,49 @@ export async function getKPIs(projectId?: number) {
   }
 }
 
-export async function getSubmissionsTimeline(projectId?: number): Promise<TimelinePoint[]> {
+const TIMELINE_CACHE_TTL = 5 * 60 * 1000
+
+export async function getSubmissionsTimeline(projectId?: number, city?: string): Promise<TimelinePoint[]> {
+  const cacheKey = `timeline:${projectId ?? "all"}:${city ?? "all"}`
+  const cached = getCached(cacheKey)
+  if (cached) return cached as TimelinePoint[]
+
   const projects = await getProjects(projectId)
   const daily: Record<string, TimelinePoint> = {}
 
   for (const p of projects) {
+    let cityLookup: Record<string, string> | null = null
+    if (city) {
+      try {
+        const entities = await getEntities(p.id, "pessoas_idosas").catch(() => [])
+        cityLookup = {}
+        for (const e of entities) {
+          const label = (e.currentVersion?.label as string) || ""
+          const afterPipe = label.split("|")[1] || ""
+          const match = afterPipe.match(/.*-([^/]+)\/[a-z]{2,3}$/i)
+          const entityCity = match?.[1]?.trim()
+          if (entityCity) cityLookup[e.uuid] = entityCity
+        }
+      } catch {
+        cityLookup = {}
+      }
+    }
+
     for (const form of ["form_parte_1", "form_parte_2"]) {
       try {
         const data = await queryOData(p.id, form, 1000)
         const values = data.value ?? []
         for (const v of values) {
+          if (city) {
+            if (form === "form_parte_1") {
+              const submissionCity = v.preliminar?.municipio_nome || ""
+              if (submissionCity.toLowerCase() !== city.toLowerCase()) continue
+            } else {
+              const uuid = v.preliminar?.pessoa_idosa || ""
+              const entityCity = cityLookup?.[uuid] || ""
+              if (entityCity.toLowerCase() !== city.toLowerCase()) continue
+            }
+          }
           const date = v.__system?.submissionDate
           if (!date) continue
           const day = date.slice(0, 10)
@@ -123,7 +157,9 @@ export async function getSubmissionsTimeline(projectId?: number): Promise<Timeli
     }
   }
 
-  return Object.values(daily).sort((a, b) => a.date.localeCompare(b.date))
+  const result = Object.values(daily).sort((a, b) => a.date.localeCompare(b.date))
+  setCache(cacheKey, result, TIMELINE_CACHE_TTL)
+  return result
 }
 
 export async function getCityStats(projectId?: number): Promise<CityStat[]> {
