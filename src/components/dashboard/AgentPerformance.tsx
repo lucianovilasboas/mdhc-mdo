@@ -2,14 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { ExpandableSection } from "@/components/ui/expandable-section"
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LabelList,
@@ -74,28 +67,14 @@ export function AgentPerformance({ data }: AgentPerformanceProps) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle className="text-lg">Desempenho dos Agentes (Top 15)</CardTitle>
+        <ExpandableSection title="Desempenho de Todos os Agentes">
+          <BarChartContent agents={data} />
+        </ExpandableSection>
       </CardHeader>
       <CardContent>
         <BarChartContent agents={top15} />
-        <div className="mt-4 flex justify-center">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                Ver todos os agentes
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Desempenho de Todos os Agentes</DialogTitle>
-              </DialogHeader>
-              <div className="max-h-[70vh] overflow-y-auto">
-                <BarChartContent agents={data} />
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
       </CardContent>
     </Card>
   )

@@ -1,8 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Home } from "lucide-react"
+import {
+  Dialog, DialogContent, DialogTitle,
+  DialogTrigger, DialogClose,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Home, Maximize2, X } from "lucide-react"
 
 interface CityMapStat {
   city: string
@@ -29,7 +34,7 @@ const CITY_COORDS: Record<string, [number, number]> = {
 const DEFAULT_CENTER: [number, number] = [-20.5, -55.5]
 const DEFAULT_ZOOM = 6
 
-export function CityMap({ data }: CityMapProps) {
+function MapRenderer({ data, mapKey, heightClass = "h-[400px]" }: { data: CityMapStat[]; mapKey?: number; heightClass?: string }) {
   const [MapComponents, setMapComponents] = useState<React.ReactNode | null>(null)
 
   useEffect(() => {
@@ -68,7 +73,7 @@ export function CityMap({ data }: CityMapProps) {
         return (
           <button
             onClick={() => map.setView(DEFAULT_CENTER, DEFAULT_ZOOM)}
-            className="absolute top-2 right-2 z-[1000] bg-white rounded-md shadow-md border border-gray-200 p-1.5 hover:bg-gray-100 transition-colors"
+            className="absolute top-24 right-2 z-[1000] bg-white rounded-md shadow-md border border-gray-200 p-1.5 hover:bg-gray-100 transition-colors"
             title="Redefinir visualização"
           >
             <Home className="h-4 w-4 text-gray-600" />
@@ -76,33 +81,77 @@ export function CityMap({ data }: CityMapProps) {
         )
       }
 
+      function MapInvalidator() {
+        const map = useMap()
+        useEffect(() => {
+          const timer = setTimeout(() => map.invalidateSize(), 300)
+          return () => clearTimeout(timer)
+        }, [map])
+        return null
+      }
+
       setMapComponents(
-        <div className="relative">
-          <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="h-[400px] w-full rounded-b-lg z-0">
+        <div className={`relative ${heightClass}`}>
+          <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="w-full h-full rounded-b-lg z-0">
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             {markers}
             <MapResetter />
+            <MapInvalidator />
           </MapContainer>
         </div>
       )
     }
     loadMap()
-  }, [data])
+  }, [data, mapKey, heightClass])
+
+  return MapComponents || (
+    <div className={`${heightClass} flex items-center justify-center text-muted-foreground`}>
+      Carregando mapa...
+    </div>
+  )
+}
+
+export function CityMap({ data }: CityMapProps) {
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogMapKey, setDialogMapKey] = useState(0)
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    setDialogOpen(open)
+    if (open) setDialogMapKey((k) => k + 1)
+  }, [])
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">Mapa dos Municípios</CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
-        {MapComponents || (
-          <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-            Carregando mapa...
-          </div>
-        )}
+      <CardContent className="p-0 relative">
+        <MapRenderer data={data} />
+        <div className="absolute top-3 right-3 z-10">
+          <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+            <DialogTrigger asChild>
+              <Button variant="secondary" size="icon" className={`h-8 w-8 shadow-md ${dialogOpen ? "invisible" : ""}`}>
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[95vw] max-h-[95vh]">
+              <div className="flex items-center justify-between">
+                <DialogTitle className="text-xl">Mapa dos Municípios</DialogTitle>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DialogClose>
+              </div>
+              <div className="overflow-hidden flex-1" style={{ height: "calc(90vh - 80px)" }}>
+                <MapRenderer key={dialogMapKey} data={data} heightClass="h-full" />
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardContent>
     </Card>
   )

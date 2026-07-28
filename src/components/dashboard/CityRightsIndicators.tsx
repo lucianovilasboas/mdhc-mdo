@@ -1,6 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ExpandableSection } from "@/components/ui/expandable-section"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
@@ -69,51 +70,62 @@ export function CityRightsIndicators({ data }: CityRightsIndicatorsProps) {
     label: e.projectName ? `${e.city} (${e.projectName})` : e.city,
   }))
 
+  function RightsTable() {
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="sticky left-0 bg-card min-w-[200px]">Violação</TableHead>
+            {headers.map((h) => (
+              <TableHead key={h.city} className="text-right min-w-[100px]">{h.label}</TableHead>
+            ))}
+            <TableHead className="text-right min-w-[100px] font-bold">Total</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sorted.map((row) => {
+            const rowTotal = totals[row.key]
+            const totalSim = rowTotal?.sim ?? 0
+            const totalPct = rowTotal && rowTotal.total > 0
+              ? Math.round((rowTotal.sim / rowTotal.total) * 100)
+              : 0
+            return (
+              <TableRow key={row.key}>
+                <TableCell className="sticky left-0 bg-card font-medium">{row.name}</TableCell>
+                {data.map((entry) => {
+                  const ind = entry.indicators.find((i) => i.key === row.key)
+                  const sim = ind?.sim ?? 0
+                  const pct = ind?.percentual ?? 0
+                  return (
+                    <TableCell key={entry.city} className="text-right tabular-nums">
+                      {ind && ind.total > 0 ? `${sim} (${pct}%)` : "—"}
+                    </TableCell>
+                  )
+                })}
+                <TableCell className="text-right tabular-nums font-semibold">
+                  {totalSim} ({(rowTotal && rowTotal.total > 0) ? Math.round((rowTotal.sim / rowTotal.total) * 100) : 0}%)
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    )
+  }
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle className="text-lg">Violações de Direitos por Município (Parte 2)</CardTitle>
+        <ExpandableSection title="Violações de Direitos por Município (Parte 2)">
+          <div className="overflow-x-auto">
+            <RightsTable />
+          </div>
+        </ExpandableSection>
       </CardHeader>
       <CardContent className="p-0 sm:p-6">
         <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="sticky left-0 bg-card min-w-[200px]">Violação</TableHead>
-                {headers.map((h) => (
-                  <TableHead key={h.city} className="text-right min-w-[100px]">{h.label}</TableHead>
-                ))}
-                <TableHead className="text-right min-w-[100px] font-bold">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sorted.map((row) => {
-                const rowTotal = totals[row.key]
-                const totalSim = rowTotal?.sim ?? 0
-                const totalPct = rowTotal && rowTotal.total > 0
-                  ? Math.round((rowTotal.sim / rowTotal.total) * 100)
-                  : 0
-                return (
-                  <TableRow key={row.key}>
-                    <TableCell className="sticky left-0 bg-card font-medium">{row.name}</TableCell>
-                    {data.map((entry) => {
-                      const ind = entry.indicators.find((i) => i.key === row.key)
-                      const sim = ind?.sim ?? 0
-                      const pct = ind?.percentual ?? 0
-                      return (
-                        <TableCell key={entry.city} className="text-right tabular-nums">
-                          {ind && ind.total > 0 ? `${sim} (${pct}%)` : "—"}
-                        </TableCell>
-                      )
-                    })}
-                    <TableCell className="text-right tabular-nums font-semibold">
-                      {totalSim} ({(rowTotal && rowTotal.total > 0) ? Math.round((rowTotal.sim / rowTotal.total) * 100) : 0}%)
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+          <RightsTable />
         </div>
       </CardContent>
     </Card>

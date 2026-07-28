@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ExpandableSection } from "@/components/ui/expandable-section"
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
@@ -17,6 +18,28 @@ interface TimelinePoint {
 interface SubmissionsChartProps {
   data: TimelinePoint[]
   availableCities?: string[]
+}
+
+function LineChartContent({ data, height }: { data: { label: string; date: string; parte1: number; parte2: number; total: number }[]; height: number }) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+        <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+        <YAxis tick={{ fontSize: 12 }} />
+        <Tooltip
+          labelFormatter={(label: string) => {
+            const [day, month] = label.split("/")
+            return `${day}/${month}`
+          }}
+        />
+        <Legend />
+        <Line type="monotone" dataKey="parte1" name="Parte 1 (Cadastro)" stroke="#2563eb" strokeWidth={2} />
+        <Line type="monotone" dataKey="parte2" name="Parte 2 (Direitos)" stroke="#16a34a" strokeWidth={2} />
+        <Line type="monotone" dataKey="total" name="Total" stroke="#dc2626" strokeWidth={2} strokeDasharray="4 2" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
 }
 
 function mergeWithFullRange(full: TimelinePoint[], filtered: TimelinePoint[]): TimelinePoint[] {
@@ -70,18 +93,39 @@ export function SubmissionsChart({ data, availableCities = [] }: SubmissionsChar
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle className="text-lg">Evolução das Submissões</CardTitle>
-        {availableCities.length > 0 && (
-          <select
-            value={selectedCity}
-            onChange={(e) => handleCityChange(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 py-0 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-w-[180px]"
-          >
-            <option value="">Todas as Cidades</option>
-            {availableCities.map((city) => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-2">
+          {availableCities.length > 0 && (
+            <select
+              value={selectedCity}
+              onChange={(e) => handleCityChange(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 py-0 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-w-[180px]"
+            >
+              <option value="">Todas as Cidades</option>
+              {availableCities.map((city) => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
+          )}
+          <ExpandableSection title="Evolução das Submissões">
+            <div className="space-y-4">
+              {availableCities.length > 0 && (
+                <div className="flex justify-end">
+                  <select
+                    value={selectedCity}
+                    onChange={(e) => handleCityChange(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 py-0 text-xs shadow-sm transition-colors max-w-[180px]"
+                  >
+                    <option value="">Todas as Cidades</option>
+                    {availableCities.map((city) => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <LineChartContent data={chartData} height={500} />
+            </div>
+          </ExpandableSection>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -89,23 +133,7 @@ export function SubmissionsChart({ data, availableCities = [] }: SubmissionsChar
             Carregando...
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip
-                labelFormatter={(label: string) => {
-                  const [day, month] = label.split("/")
-                  return `${day}/${month}`
-                }}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="parte1" name="Parte 1 (Cadastro)" stroke="#2563eb" strokeWidth={2} />
-              <Line type="monotone" dataKey="parte2" name="Parte 2 (Direitos)" stroke="#16a34a" strokeWidth={2} />
-              <Line type="monotone" dataKey="total" name="Total" stroke="#dc2626" strokeWidth={2} strokeDasharray="4 2" />
-            </LineChart>
-          </ResponsiveContainer>
+          <LineChartContent data={chartData} height={300} />
         )}
       </CardContent>
     </Card>
