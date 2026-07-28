@@ -7,9 +7,10 @@ COPY . .
 RUN npm run build
 
 FROM node:22-alpine AS runner
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ tzdata
 WORKDIR /app
 ENV NODE_ENV=production
+ENV TZ=America/Sao_Paulo
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules

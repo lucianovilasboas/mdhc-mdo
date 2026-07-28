@@ -13,11 +13,9 @@ interface KpiCardsProps {
 }
 
 function formatDate(iso: string | null): string {
-  // Delta -3h - ok
   if (!iso) return "—"
-  const d = new Date(iso)
-  d.setHours(d.getHours() - 3)
-  return d.toLocaleDateString("pt-BR", {
+  return new Date(iso).toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   })

@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { users } from "@/db/schema"
 import { eq, sql } from "drizzle-orm"
 import { log } from "./logger"
+import { nowBRT } from "./dates"
 
 declare module "next-auth" {
   interface User {
@@ -57,7 +58,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
           db.update(users)
             .set({
-              lastLogin: sql`datetime('now')`,
+              lastLogin: nowBRT(),
               loginCount: sql`COALESCE(login_count, 0) + 1`,
             })
             .where(eq(users.email, email))
