@@ -58,6 +58,29 @@ export interface RightsIndicator {
   percentual: number
 }
 
+export interface MultiSelectItem {
+  key: string
+  label: string
+  count: number
+  percentual: number
+}
+
+export interface MultiSelectIndicator {
+  key: string
+  name: string
+  gateKey: string
+  gateName: string
+  gateSim: number
+  items: MultiSelectItem[]
+}
+
+export interface CityMultiSelectEntry {
+  city: string
+  projectName: string
+  projectId: number
+  indicators: MultiSelectIndicator[]
+}
+
 export interface ODataSubmission {
   __id: string
   __system: {
