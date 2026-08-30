@@ -4,7 +4,7 @@ import { log } from "./logger"
 import type {
   TimelinePoint, CityStat, AgentStat, DemographicProfile,
   RightsIndicator, MultiSelectIndicator, MultiSelectItem,
-  CityMultiSelectEntry,
+  CityMultiSelectEntry, CityRightsEntry,
 } from "@/types"
 
 const LABEL_MAP: Record<string, Record<string, string>> = {
@@ -544,7 +544,7 @@ export async function getMultiSelectIndicatorsByCity(projectId?: number): Promis
   }))
 }
 
-export async function getRightsIndicatorsByCity(projectId?: number): Promise<{ city: string; projectName: string; projectId: number; indicators: RightsIndicator[] }[]> {
+export async function getRightsIndicatorsByCity(projectId?: number): Promise<CityRightsEntry[]> {
   const projects = await getProjects(projectId)
   const cityMap: Record<string, { city: string; projectName: string; projectId: number; totals: Record<string, { sim: number; nao: number; total: number }> }> = {}
 

@@ -5,14 +5,7 @@ import { ExpandableSection } from "@/components/ui/expandable-section"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
-import type { RightsIndicator, MultiSelectIndicator, CityMultiSelectEntry } from "@/types"
-
-interface CityRightsEntry {
-  city: string
-  projectName: string
-  projectId: number
-  indicators: RightsIndicator[]
-}
+import type { MultiSelectIndicator, CityMultiSelectEntry, CityRightsEntry } from "@/types"
 
 interface CityRightsIndicatorsProps {
   data: CityRightsEntry[]
@@ -29,6 +22,16 @@ interface RightsTableProps {
   sorted: SortedRow[]
   data: CityRightsEntry[]
   headers: { city: string; label: string }[]
+  totals: Record<string, { sim: number; total: number }>
+  multiByCity: Record<string, Record<string, MultiSelectIndicator>> | null
+  multiTotals: Record<string, { count: number; gateSim: number }> | null
+  gateItemOrder: Record<string, { key: string; label: string }[]>
+  gateHasData: Record<string, boolean>
+}
+
+interface MobileCardsProps {
+  sorted: SortedRow[]
+  data: CityRightsEntry[]
   totals: Record<string, { sim: number; total: number }>
   multiByCity: Record<string, Record<string, MultiSelectIndicator>> | null
   multiTotals: Record<string, { count: number; gateSim: number }> | null
@@ -187,6 +190,69 @@ function RightsTable({
   )
 }
 
+function MobileCards({
+  sorted, data, totals,
+  multiByCity, multiTotals, gateItemOrder, gateHasData,
+}: MobileCardsProps) {
+  const rows = sorted.filter((row) => (totals[row.key]?.sim ?? 0) > 0)
+  if (rows.length === 0) {
+    return <p className="p-4 text-sm text-muted-foreground">Sem violações registradas.</p>
+  }
+  return (
+    <div className="space-y-3 p-4">
+      {rows.map((row) => {
+        const rowTotal = totals[row.key]
+        const totalSim = rowTotal?.sim ?? 0
+        const totalPct = rowTotal && rowTotal.total > 0
+          ? Math.round((rowTotal.sim / rowTotal.total) * 100)
+          : 0
+        const items = gateItemOrder[row.key] ?? []
+        const hasItems = multiByCity != null && gateHasData[row.key]
+        return (
+          <div key={row.key} className="rounded-lg border bg-card p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">{row.name}</span>
+              <span className="text-sm font-semibold tabular-nums">{totalSim} ({totalPct}%)</span>
+            </div>
+            <ul className="mt-2 space-y-1">
+              {data.map((entry) => {
+                const ind = entry.indicators.find((i) => i.key === row.key)
+                const sim = ind?.sim ?? 0
+                const pct = ind?.percentual ?? 0
+                const label = entry.projectName ? `${entry.city} (${entry.projectName})` : entry.city
+                return (
+                  <li key={entry.city} className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                    <span>{label}</span>
+                    <span className="tabular-nums">{ind && ind.total > 0 ? `${sim} (${pct}%)` : "—"}</span>
+                  </li>
+                )
+              })}
+            </ul>
+            {hasItems && (
+              <div className="mt-3 border-t pt-2 text-xs text-muted-foreground">
+                <p className="font-medium">Tipos:</p>
+                <ul className="mt-1 space-y-0.5">
+                  {items.map((item) => {
+                    const mt = multiTotals?.[`${row.key}:${item.key}`]
+                    return (
+                      <li key={item.key} className="flex items-center justify-between gap-2">
+                        <span>· {item.label}</span>
+                        <span className="tabular-nums">
+                          {mt && mt.gateSim > 0 ? `${mt.count} (${Math.round((mt.count / mt.gateSim) * 100)}%)` : "—"}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function CityRightsIndicators({ data, multiSelect }: CityRightsIndicatorsProps) {
   if (data.length === 0) return null
 
@@ -221,7 +287,14 @@ export function CityRightsIndicators({ data, multiSelect }: CityRightsIndicators
         </ExpandableSection>
       </CardHeader>
       <CardContent className="p-0 sm:p-6">
-        <div className="overflow-x-auto">
+        <div className="md:hidden">
+          <MobileCards
+            sorted={sorted} data={data} totals={totals}
+            multiByCity={multiByCity} multiTotals={multiTotals}
+            gateItemOrder={gateItemOrder} gateHasData={gateHasData}
+          />
+        </div>
+        <div className="hidden md:block overflow-x-auto">
           <RightsTable
             sorted={sorted} data={data} headers={headers} totals={totals}
             multiByCity={multiByCity} multiTotals={multiTotals}

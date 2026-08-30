@@ -9,6 +9,11 @@ export default function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Static assets (files with an extension) don't require auth
+  if (/\.[a-zA-Z0-9]+$/.test(pathname)) {
+    return NextResponse.next()
+  }
+
   const token = req.cookies.get("authjs.session-token")?.value
     ?? req.cookies.get("__Secure-authjs.session-token")?.value
   if (!token) {

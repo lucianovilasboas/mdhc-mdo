@@ -1,5 +1,6 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -15,7 +16,22 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Envelhecer nos Territórios — Dashboard",
   description: "Dashboard de acompanhamento do Projeto Envelhecer nos Territórios — MDHC",
-  icons: [{ rel: "icon", url: "/favicon.svg", type: "image/svg+xml" }],
+  applicationName: "Envelhecer nos Territórios",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "Envelhecer nos Territórios",
+    statusBarStyle: "default",
+  },
+  icons: [
+    { rel: "apple-touch-icon", url: "/apple-touch-icon.png" },
+  ],
+}
+
+export const viewport: Viewport = {
+  themeColor: "#3E1F0A",
+  width: "device-width",
+  initialScale: 1,
 }
 
 export default function RootLayout({
@@ -25,7 +41,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body suppressHydrationWarning className="min-h-full flex flex-col bg-muted/30">{children}</body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col bg-muted/30">
+        <ServiceWorkerRegister />
+        {children}
+      </body>
     </html>
   )
 }
