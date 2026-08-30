@@ -57,6 +57,7 @@ async function seed() {
     { id: "9", name: "Paulo Dutra", email: "paulo.dutra@ifms.edu.br", role: "user", projectId: "5" },
     { id: "10", name: "Ronald Cavalcanti", email: "ronald.cavalcanti@ufpe.br", role: "user", projectId: "8" },
     { id: "11", name: "Lívia Basile", email: "liviabasile@ufgd.edu.br", role: "user", projectId: "7" },
+    { id: "12", name: "CGEAS", email: "cgeas@mdh.gov.br", role: "admin", projectId: null },
   ]
 
   for (const u of usuarios) {
