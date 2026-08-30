@@ -1,3 +1,37 @@
+/** Cores de marca institucional (identidade visual). */
+export const CORES_MARCA = {
+  marrom: "#3E1F0A",
+} as const
+
+/**
+ * Paleta central de gráficos — fonte única de cores.
+ * NUNCA hardcode hex em componentes: importe daqui (ou de CORES_DONUT).
+ */
+export const PALETA_CORES = {
+  azul: "#2563eb",
+  verde: "#16a34a",
+  vermelho: "#dc2626",
+  amarelo: "#ca8a04",
+  roxo: "#9333ea",
+  teal: "#0891b2",
+  rosa: "#be185d",
+  laranja: "#ea580c",
+  violeta: "#7c3aed",
+  fucsia: "#db2777",
+} as const
+
+/** Sequência cíclica para donuts / barras com muitas categorias. */
+export const CORES_DONUT = [
+  PALETA_CORES.azul,
+  PALETA_CORES.verde,
+  PALETA_CORES.vermelho,
+  PALETA_CORES.amarelo,
+  PALETA_CORES.roxo,
+  PALETA_CORES.teal,
+  PALETA_CORES.rosa,
+  PALETA_CORES.laranja,
+] as const
+
 export interface Project {
   id: number
   name: string

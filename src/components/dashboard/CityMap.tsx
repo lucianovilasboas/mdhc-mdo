@@ -8,16 +8,10 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Home, Maximize2, X } from "lucide-react"
-
-interface CityMapStat {
-  city: string
-  uf: string
-  submissions: number
-  projectName: string
-}
+import type { CityStat } from "@/types"
 
 interface CityMapProps {
-  data: CityMapStat[]
+  data: CityStat[]
 }
 
 const CITY_COORDS: Record<string, [number, number]> = {
@@ -34,7 +28,7 @@ const CITY_COORDS: Record<string, [number, number]> = {
 const DEFAULT_CENTER: [number, number] = [-20.5, -55.5]
 const DEFAULT_ZOOM = 6
 
-function MapRenderer({ data, mapKey, heightClass = "h-[400px]" }: { data: CityMapStat[]; mapKey?: number; heightClass?: string }) {
+function MapRenderer({ data, mapKey, heightClass = "h-[400px]" }: { data: CityStat[]; mapKey?: number; heightClass?: string }) {
   const [MapComponents, setMapComponents] = useState<React.ReactNode | null>(null)
 
   useEffect(() => {

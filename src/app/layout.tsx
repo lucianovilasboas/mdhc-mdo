@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister"
+import { CORES_MARCA } from "@/types"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#3E1F0A",
+  themeColor: CORES_MARCA.marrom,
   width: "device-width",
   initialScale: 1,
 }

@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { ElderlyWomanIcon } from "@/components/dashboard/ElderlyWomanIcon"
+import { Users, Building2, MapPin, Flag, FileText, Clock } from "lucide-react"
 import type { ReactNode } from "react"
 
 interface KpiCardsProps {
@@ -24,12 +25,12 @@ function formatDate(iso: string | null): string {
 export function KpiCards(props: KpiCardsProps) {
   const items: { label: string; value: string | number; icon: ReactNode }[] = [
     { label: "Pessoas Idosas Entrevistadas", value: props.totalIdosos, icon: <ElderlyWomanIcon className="w-7 h-7" /> },
-    { label: "Agentes de Campo", value: props.totalAgents, icon: "👤" },
-    { label: "Projetos", value: props.totalProjects, icon: "📋" },
-    { label: "Municípios", value: props.totalCities, icon: "🏙️" },
-    { label: "Estados/DF", value: props.totalUfs, icon: "📍" },
-    { label: "Submissões", value: props.totalForms, icon: "📝" },
-    { label: "Última Submissão", value: formatDate(props.lastSubmission), icon: "🕐" },
+    { label: "Agentes de Campo", value: props.totalAgents, icon: <Users className="w-7 h-7" /> },
+    { label: "Projetos", value: props.totalProjects, icon: <Building2 className="w-7 h-7" /> },
+    { label: "Municípios", value: props.totalCities, icon: <MapPin className="w-7 h-7" /> },
+    { label: "Estados/DF", value: props.totalUfs, icon: <Flag className="w-7 h-7" /> },
+    { label: "Submissões", value: props.totalForms, icon: <FileText className="w-7 h-7" /> },
+    { label: "Última Submissão", value: formatDate(props.lastSubmission), icon: <Clock className="w-7 h-7" /> },
   ]
 
   return (

@@ -5,19 +5,12 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, LabelList,
 } from "recharts"
-
-interface CityStat {
-  city: string
-  uf: string
-  submissions: number
-  projectName: string
-}
+import { CORES_DONUT } from "@/types"
+import type { CityStat } from "@/types"
 
 interface CityDistributionProps {
   data: CityStat[]
 }
-
-const COLORS = ["#2563eb", "#16a34a", "#dc2626", "#ca8a04", "#9333ea", "#0891b2", "#be185d", "#ea580c"]
 
 export function CityDistribution({ data }: CityDistributionProps) {
   return (
@@ -42,9 +35,9 @@ export function CityDistribution({ data }: CityDistributionProps) {
             />
             <Bar dataKey="submissions" radius={[0, 4, 4, 0]}>
               {data.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                <Cell key={i} fill={CORES_DONUT[i % CORES_DONUT.length]} />
               ))}
-              <LabelList dataKey="submissions" position="right" fontSize={12} fill="#374151" />
+              <LabelList dataKey="submissions" position="right" fontSize={12} className="fill-muted-foreground" />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

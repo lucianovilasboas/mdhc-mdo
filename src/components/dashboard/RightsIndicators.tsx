@@ -1,34 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, LabelList,
 } from "recharts"
-
-interface RightsIndicator {
-  name: string
-  key: string
-  total: number
-  sim: number
-  nao: number
-  percentual: number
-}
+import { PALETA_CORES } from "@/types"
+import { useMediaQuery } from "@/components/dashboard/useMediaQuery"
+import type { RightsIndicator } from "@/types"
 
 interface RightsIndicatorsProps {
   data: RightsIndicator[]
 }
 
 export function RightsIndicators({ data }: RightsIndicatorsProps) {
-  const [isMobile, setIsMobile] = useState(false)
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
-    check()
-    window.addEventListener("resize", check)
-    return () => window.removeEventListener("resize", check)
-  }, [])
+  const isMobile = useMediaQuery("(max-width: 767px)")
 
   const sorted = [...data]
     .sort((a, b) => b.percentual - a.percentual)
@@ -54,17 +40,23 @@ export function RightsIndicators({ data }: RightsIndicatorsProps) {
               formatter={(value: number) => [`${value}%`, "Percentual"]}
             />
             <Bar dataKey="percentual" radius={[0, 4, 4, 0]}>
-              {sorted.map((item, i) => (
+              {sorted.map((item) => (
                 <Cell
                   key={item.key}
-                  fill={item.percentual > 20 ? "#dc2626" : item.percentual > 10 ? "#ca8a04" : "#16a34a"}
+                  fill={
+                    item.percentual > 20
+                      ? PALETA_CORES.vermelho
+                      : item.percentual > 10
+                        ? PALETA_CORES.amarelo
+                        : PALETA_CORES.verde
+                  }
                 />
               ))}
               <LabelList
                 dataKey="labelText"
                 position={isMobile ? "right" : "center"}
                 fontSize={11}
-                fill={isMobile ? "#374151" : "#ffffff"}
+                className={isMobile ? "fill-muted-foreground" : "fill-white"}
               />
             </Bar>
           </BarChart>

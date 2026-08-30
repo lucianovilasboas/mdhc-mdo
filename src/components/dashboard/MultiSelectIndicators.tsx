@@ -6,12 +6,11 @@ import {
   ResponsiveContainer, Cell, LabelList,
 } from "recharts"
 import type { MultiSelectIndicator } from "@/types"
+import { CORES_DONUT } from "@/types"
 
 interface MultiSelectIndicatorsProps {
   data: MultiSelectIndicator[]
 }
-
-const COLORS = ["#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#2563eb", "#7c3aed", "#db2777", "#0891b2"]
 
 export function MultiSelectIndicators({ data }: MultiSelectIndicatorsProps) {
   const groups = data.filter((g) => g.gateSim > 0)
@@ -48,13 +47,13 @@ export function MultiSelectIndicators({ data }: MultiSelectIndicatorsProps) {
                   />
                   <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                     {chartData.map((item, i) => (
-                      <Cell key={item.key} fill={COLORS[i % COLORS.length]} />
+                      <Cell key={item.key} fill={CORES_DONUT[i % CORES_DONUT.length]} />
                     ))}
                     <LabelList
                       dataKey="labelText"
                       position="right"
                       fontSize={11}
-                      fill="#374151"
+                      className="fill-muted-foreground"
                     />
                   </Bar>
                 </BarChart>

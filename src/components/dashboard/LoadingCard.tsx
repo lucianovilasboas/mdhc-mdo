@@ -1,6 +1,8 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { AlertTriangle, RotateCw } from "lucide-react"
 
 interface LoadingCardProps {
   height?: number
@@ -19,6 +21,38 @@ export function LoadingCard({ height = 300, label = "Carregando..." }: LoadingCa
           >
             {label}
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+interface ErrorCardProps {
+  label?: string
+  message?: string | null
+  onRetry?: () => void
+  height?: number
+}
+
+export function ErrorCard({ label = "Não foi possível carregar", message, onRetry, height = 300 }: ErrorCardProps) {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div
+          className="flex flex-col items-center justify-center gap-3 text-center"
+          style={{ minHeight: height }}
+        >
+          <AlertTriangle className="h-8 w-8 text-destructive" aria-hidden />
+          <div>
+            <p className="text-sm font-medium">{label}</p>
+            {message && <p className="mt-1 text-xs text-muted-foreground">{message}</p>}
+          </div>
+          {onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              <RotateCw className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+              Tentar novamente
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

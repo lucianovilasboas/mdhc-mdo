@@ -4,7 +4,7 @@ import { KpiCards } from "@/components/dashboard/KpiCards"
 import { SubmissionsChart } from "@/components/dashboard/SubmissionsChart"
 import { CityDistribution } from "@/components/dashboard/CityDistribution"
 import { CityMap } from "@/components/dashboard/CityMap"
-import { LoadingCard, KpiCardsSkeleton } from "@/components/dashboard/LoadingCard"
+import { LoadingCard, ErrorCard, KpiCardsSkeleton } from "@/components/dashboard/LoadingCard"
 import { useOdkData } from "@/components/dashboard/useOdkData"
 import type { CityStat, TimelinePoint, KpiOverview } from "@/types"
 
@@ -12,6 +12,9 @@ function KpiCardsWidget({ projectId }: { projectId?: number }) {
   const overview = useOdkData<KpiOverview>("overview", projectId)
   const byCity = useOdkData<CityStat[]>("by-city", projectId)
 
+  if (overview.error && !overview.data) {
+    return <ErrorCard message={overview.error} onRetry={overview.recarregar} height={120} />
+  }
   if (overview.loading && !overview.data) return <KpiCardsSkeleton />
   if (!overview.data) return null
 
@@ -35,6 +38,9 @@ function SubmissionsWidget({ projectId }: { projectId?: number }) {
   const timeline = useOdkData<TimelinePoint[]>("timeline", projectId)
   const byCity = useOdkData<CityStat[]>("by-city", projectId)
 
+  if (timeline.error && !timeline.data) {
+    return <ErrorCard message={timeline.error} onRetry={timeline.recarregar} label="Não foi possível carregar a evolução das submissões" />
+  }
   if (timeline.loading && !timeline.data) return <LoadingCard label="Carregando evolução das submissões..." />
   const data = timeline.data ?? []
   if (data.length === 0) return null
@@ -46,6 +52,9 @@ function SubmissionsWidget({ projectId }: { projectId?: number }) {
 function CityDistributionWidget({ projectId }: { projectId?: number }) {
   const byCity = useOdkData<CityStat[]>("by-city", projectId)
 
+  if (byCity.error && !byCity.data) {
+    return <ErrorCard message={byCity.error} onRetry={byCity.recarregar} label="Não foi possível carregar os municípios" />
+  }
   if (byCity.loading && !byCity.data) return <LoadingCard label="Carregando municípios..." />
   const data = byCity.data ?? []
   if (data.length === 0) return null
@@ -55,6 +64,9 @@ function CityDistributionWidget({ projectId }: { projectId?: number }) {
 function CityMapWidget({ projectId }: { projectId?: number }) {
   const byCity = useOdkData<CityStat[]>("by-city", projectId)
 
+  if (byCity.error && !byCity.data) {
+    return <ErrorCard message={byCity.error} onRetry={byCity.recarregar} label="Não foi possível carregar o mapa" height={400} />
+  }
   if (byCity.loading && !byCity.data) return <LoadingCard label="Carregando mapa..." height={400} />
   const data = byCity.data ?? []
   if (data.length === 0) return null

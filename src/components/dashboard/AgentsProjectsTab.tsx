@@ -2,7 +2,7 @@
 
 import { AgentPerformance } from "@/components/dashboard/AgentPerformance"
 import { ProjectTable } from "@/components/dashboard/ProjectTable"
-import { LoadingCard } from "@/components/dashboard/LoadingCard"
+import { LoadingCard, ErrorCard } from "@/components/dashboard/LoadingCard"
 import { useOdkData, useAsync } from "@/components/dashboard/useOdkData"
 import type { AgentStat, CityStat, KpiOverview } from "@/types"
 import type { ActiveProject } from "@/lib/odk"
@@ -10,6 +10,9 @@ import type { ActiveProject } from "@/lib/odk"
 function AgentPerformanceWidget({ projectId }: { projectId?: number }) {
   const agents = useOdkData<AgentStat[]>("by-agent", projectId)
 
+  if (agents.error && !agents.data) {
+    return <ErrorCard message={agents.error} onRetry={agents.recarregar} label="Não foi possível carregar o desempenho dos agentes" />
+  }
   if (agents.loading && !agents.data) return <LoadingCard label="Carregando desempenho dos agentes..." />
   const data = agents.data ?? []
   if (data.length === 0) return null
@@ -21,6 +24,9 @@ function ProjectTableWidget({ projectId }: { projectId?: number }) {
   const byCity = useOdkData<CityStat[]>("by-city", projectId)
   const projects = useAsync<ActiveProject[]>("/api/odk/projects")
 
+  if (overview.error && !overview.data) {
+    return <ErrorCard message={overview.error} onRetry={overview.recarregar} label="Não foi possível carregar os projetos" />
+  }
   if (overview.loading && !overview.data) return <LoadingCard label="Carregando projetos..." />
 
   const all = projects.data ?? []

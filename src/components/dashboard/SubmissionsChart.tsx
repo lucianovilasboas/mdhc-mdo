@@ -7,13 +7,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts"
-
-interface TimelinePoint {
-  date: string
-  parte1: number
-  parte2: number
-  total: number
-}
+import { PALETA_CORES } from "@/types"
+import type { TimelinePoint } from "@/types"
 
 interface SubmissionsChartProps {
   data: TimelinePoint[]
@@ -34,9 +29,9 @@ function LineChartContent({ data, height }: { data: { label: string; date: strin
           }}
         />
         <Legend />
-        <Line type="monotone" dataKey="parte1" name="Parte 1 (Cadastro)" stroke="#2563eb" strokeWidth={2} />
-        <Line type="monotone" dataKey="parte2" name="Parte 2 (Direitos)" stroke="#16a34a" strokeWidth={2} />
-        <Line type="monotone" dataKey="total" name="Total" stroke="#dc2626" strokeWidth={2} strokeDasharray="4 2" />
+        <Line type="monotone" dataKey="parte1" name="Parte 1 (Cadastro)" stroke={PALETA_CORES.azul} strokeWidth={2} />
+        <Line type="monotone" dataKey="parte2" name="Parte 2 (Direitos)" stroke={PALETA_CORES.verde} strokeWidth={2} />
+        <Line type="monotone" dataKey="total" name="Total" stroke={PALETA_CORES.vermelho} strokeWidth={2} strokeDasharray="4 2" />
       </LineChart>
     </ResponsiveContainer>
   )
