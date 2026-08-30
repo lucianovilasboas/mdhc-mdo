@@ -3,7 +3,8 @@ import { getCached, setCache } from "./cache"
 import { log } from "./logger"
 import type {
   TimelinePoint, CityStat, AgentStat, DemographicProfile,
-  RightsIndicator,
+  RightsIndicator, MultiSelectIndicator, MultiSelectItem,
+  CityMultiSelectEntry,
 } from "@/types"
 
 const LABEL_MAP: Record<string, Record<string, string>> = {
@@ -373,6 +374,174 @@ export async function getRightsIndicators(projectId?: number): Promise<RightsInd
   }
 
   return rightsFromTotals(rights, RIGHTS_FIELDS)
+}
+
+const MULTI_SELECT_FIELDS = [
+  {
+    key: "violencia",
+    name: "Qual tipo de violência?",
+    gateKey: "sofreu_violencia",
+    gateName: "Sofreu violência",
+    items: [
+      { key: "fisica", label: "Violência física" },
+      { key: "sexual", label: "Violência sexual" },
+      { key: "psicologica", label: "Violência psicológica" },
+      { key: "patrimonial_financeira", label: "Violência patrimonial, abuso financeiro ou material" },
+      { key: "discriminacao", label: "Discriminação" },
+      { key: "negligencia", label: "Negligência" },
+      { key: "abandono", label: "Abandono" },
+      { key: "institucional", label: "Violência institucional" },
+    ],
+  },
+  {
+    key: "educacao_tipos",
+    name: "Dificuldade de acesso à educação",
+    gateKey: "dificuldade_educacao",
+    gateName: "Dificuldade acesso à educação",
+    items: [
+      { key: "permanencia", label: "Permanência" },
+      { key: "acesso", label: "Acesso" },
+      { key: "locomocao", label: "Locomoção" },
+    ],
+  },
+  {
+    key: "reuniao_tipos",
+    name: "Dificuldade de reunião/manifestação",
+    gateKey: "impedido_reuniao_manifestacao",
+    gateName: "Impedido de reunião/manifestação",
+    items: [
+      { key: "politico", label: "Político" },
+      { key: "sindical", label: "Sindical" },
+      { key: "civico", label: "Cívico" },
+      { key: "social", label: "Social" },
+      { key: "esportivo", label: "Esportivo" },
+      { key: "outros", label: "Outro" },
+    ],
+  },
+  {
+    key: "dificuldade_cuidados_tipos",
+    name: "Dificuldade com cuidados",
+    gateKey: "dificuldade_cuidados",
+    gateName: "Dificuldade com cuidados",
+    items: [
+      { key: "saude", label: "Saúde" },
+      { key: "assistencia_social", label: "Assistência social" },
+      { key: "seguranca", label: "Segurança" },
+      { key: "alimentacao", label: "Alimentação" },
+      { key: "agua", label: "Água" },
+      { key: "vestuario", label: "Vestuário" },
+      { key: "habitacao", label: "Habitação" },
+    ],
+  },
+]
+
+interface Parte2Row {
+  preliminar?: { pessoa_idosa?: string }
+  entrevista?: Record<string, unknown>
+}
+
+function newMultiSelectTotals(): Record<string, { gateSim: number; items: Record<string, number> }> {
+  const totals: Record<string, { gateSim: number; items: Record<string, number> }> = {}
+  for (const f of MULTI_SELECT_FIELDS) {
+    const items: Record<string, number> = {}
+    for (const it of f.items) items[it.key] = 0
+    totals[f.key] = { gateSim: 0, items }
+  }
+  return totals
+}
+
+function accumulateMultiSelect(values: Parte2Row[], totals: Record<string, { gateSim: number; items: Record<string, number> }>): void {
+  for (const v of values) {
+    const e = v.entrevista
+    if (!e) continue
+    for (const f of MULTI_SELECT_FIELDS) {
+      if (e[f.gateKey] === "sim") totals[f.key].gateSim++
+      const raw = e[f.key]
+      if (typeof raw !== "string" || raw === "") continue
+      for (const token of raw.split(" ")) {
+        const t = token.trim()
+        if (t && totals[f.key].items[t] !== undefined) totals[f.key].items[t]++
+      }
+    }
+  }
+}
+
+function multiSelectFromTotals(totals: Record<string, { gateSim: number; items: Record<string, number> }>): MultiSelectIndicator[] {
+  return MULTI_SELECT_FIELDS.map((f) => ({
+    key: f.key,
+    name: f.name,
+    gateKey: f.gateKey,
+    gateName: f.gateName,
+    gateSim: totals[f.key].gateSim,
+    items: f.items.map((it): MultiSelectItem => {
+      const count = totals[f.key].items[it.key]
+      return {
+        key: it.key,
+        label: it.label,
+        count,
+        percentual: totals[f.key].gateSim > 0
+          ? Math.round((count / totals[f.key].gateSim) * 100)
+          : 0,
+      }
+    }),
+  }))
+}
+
+export async function getMultiSelectIndicators(projectId?: number): Promise<MultiSelectIndicator[]> {
+  const projects = await getProjects(projectId)
+  const totals = newMultiSelectTotals()
+
+  for (const p of projects) {
+    try {
+      const data = await queryOData(p.id, "form_parte_2", 500)
+      accumulateMultiSelect(data.value ?? [], totals)
+    } catch {
+      /* skip */
+    }
+  }
+
+  return multiSelectFromTotals(totals)
+}
+
+export async function getMultiSelectIndicatorsByCity(projectId?: number): Promise<CityMultiSelectEntry[]> {
+  const projects = await getProjects(projectId)
+  const cityMap: Record<string, { city: string; projectName: string; projectId: number; totals: Record<string, { gateSim: number; items: Record<string, number> }> }> = {}
+
+  for (const p of projects) {
+    try {
+      const entities = await getEntities(p.id, "pessoas_idosas").catch(() => [])
+      const cityLookup: Record<string, string> = {}
+      for (const e of entities) {
+        const label = (e.currentVersion?.label as string) || ""
+        const afterPipe = label.split("|")[1] || ""
+        const match = afterPipe.match(/.*-([^/]+)\/[a-z]{2,3}$/)
+        const city = match?.[1]?.trim()
+        if (city) cityLookup[e.uuid] = city
+      }
+
+      const p2 = await queryOData(p.id, "form_parte_2", 500)
+      for (const v of p2.value ?? []) {
+        const uuid = v.preliminar?.pessoa_idosa
+        if (!uuid) continue
+        const city = cityLookup[uuid] || "desconhecido"
+        if (city === "desconhecido") continue
+        const key = `${p.id}-${city}`
+        if (!cityMap[key]) {
+          cityMap[key] = { city, projectName: p.name, projectId: p.id, totals: newMultiSelectTotals() }
+        }
+        accumulateMultiSelect([v], cityMap[key].totals)
+      }
+    } catch {
+      /* skip */
+    }
+  }
+
+  return Object.values(cityMap).map((entry) => ({
+    city: entry.city,
+    projectName: entry.projectName,
+    projectId: entry.projectId,
+    indicators: multiSelectFromTotals(entry.totals),
+  }))
 }
 
 export async function getRightsIndicatorsByCity(projectId?: number): Promise<{ city: string; projectName: string; projectId: number; indicators: RightsIndicator[] }[]> {

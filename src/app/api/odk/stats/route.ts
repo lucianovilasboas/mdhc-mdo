@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import {
   getKPIs, getSubmissionsTimeline, getCityStats,
   getAgentRanking, getDemographics, getRightsIndicators,
+  getMultiSelectIndicators,
 } from "@/lib/stats"
 
 export async function GET(req: NextRequest) {
@@ -32,6 +33,10 @@ export async function GET(req: NextRequest) {
       }
       case "rights": {
         const data = await getRightsIndicators()
+        return NextResponse.json(data)
+      }
+      case "multi-select": {
+        const data = await getMultiSelectIndicators()
         return NextResponse.json(data)
       }
       default:

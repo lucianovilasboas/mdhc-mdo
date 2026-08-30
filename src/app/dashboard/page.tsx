@@ -6,13 +6,15 @@ import { CityMap } from "@/components/dashboard/CityMap"
 import { ElderlyProfileSection } from "@/components/dashboard/ElderlyProfileSection"
 import { RightsIndicators } from "@/components/dashboard/RightsIndicators"
 import { CityRightsIndicators } from "@/components/dashboard/CityRightsIndicators"
+import { MultiSelectIndicators } from "@/components/dashboard/MultiSelectIndicators"
 import { AgentPerformance } from "@/components/dashboard/AgentPerformance"
 import { ProjectTable } from "@/components/dashboard/ProjectTable"
 
 import {
   getKPIs, getSubmissionsTimeline, getCityStats,
   getAgentRanking, getDemographics, getRightsIndicators,
-  getRightsIndicatorsByCity,
+  getRightsIndicatorsByCity, getMultiSelectIndicators,
+  getMultiSelectIndicatorsByCity,
 } from "@/lib/stats"
 import { fetchActiveProjects } from "@/lib/odk"
 import { auth } from "@/lib/auth"
@@ -32,7 +34,7 @@ export default async function DashboardPage({
 
   const kpis = await getKPIs(selectedProjectId).catch(() => null)
 
-  const [timeline, cityStats, agentRanking, demographics, rightsIndicators, rightsByCity] =
+  const [timeline, cityStats, agentRanking, demographics, rightsIndicators, rightsByCity, multiSelect, multiSelectByCity] =
     await Promise.all([
       getSubmissionsTimeline(selectedProjectId).catch(() => []),
       getCityStats(selectedProjectId).catch(() => []),
@@ -41,6 +43,12 @@ export default async function DashboardPage({
       getRightsIndicators(selectedProjectId).catch(() => []),
       kpis?.totalParte2
         ? getRightsIndicatorsByCity(selectedProjectId).catch(() => [])
+        : [],
+      kpis?.totalParte2
+        ? getMultiSelectIndicators(selectedProjectId).catch(() => [])
+        : [],
+      kpis?.totalParte2
+        ? getMultiSelectIndicatorsByCity(selectedProjectId).catch(() => [])
         : [],
     ])
 
@@ -122,7 +130,9 @@ export default async function DashboardPage({
 
         {rightsIndicators.length > 0 && <RightsIndicators data={rightsIndicators} />}
 
-        {rightsByCity.length > 0 && <CityRightsIndicators data={rightsByCity} />}
+        {multiSelect.length > 0 && <MultiSelectIndicators data={multiSelect} />}
+
+        {rightsByCity.length > 0 && <CityRightsIndicators data={rightsByCity} multiSelect={multiSelectByCity} />}
 
         <Separator />
 
