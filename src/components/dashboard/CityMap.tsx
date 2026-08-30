@@ -8,98 +8,112 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Home, Maximize2, X } from "lucide-react"
-import type { CityStat } from "@/types"
+import { PALETA_CORES } from "@/types"
+import type { MapPoint } from "@/types"
+import "leaflet/dist/leaflet.css"
+import "leaflet.markercluster/dist/MarkerCluster.css"
+import "leaflet.markercluster/dist/MarkerCluster.Default.css"
+
+type LeafletModule = typeof import("leaflet")
+type UseMapHook = () => L.Map
+
+const DEFAULT_CENTER: [number, number] = [-14.5, -52]
+const DEFAULT_ZOOM = 4
 
 interface CityMapProps {
-  data: CityStat[]
+  points: MapPoint[]
 }
 
-const CITY_COORDS: Record<string, [number, number]> = {
-  "Corumbá": [-19.0077, -57.6514],
-  "Bela Vista": [-22.1087, -56.5211],
-  "Ivinhema": [-22.3043, -53.8189],
-  "Fátima do Sul": [-22.3744, -54.5133],
-  "Aquidauana": [-20.4711, -55.7872],
-  "Coxim": [-18.5067, -54.76],
-  "Naviraí": [-23.0619, -54.1994],
-  "Ponta Porã": [-22.5361, -55.7256],
+/* Agrupa os pontos em clusters e monta os markers (sem PII no popup). */
+function ClusterLayer({ L, useMap, points }: { L: LeafletModule; useMap: UseMapHook; points: MapPoint[] }) {
+  const map = useMap()
+
+  useEffect(() => {
+    const cluster = L.markerClusterGroup({
+      maxClusterRadius: 45,
+      showCoverageOnHover: false,
+    })
+    const markers = points.map((pt) => {
+      const color = pt.form === "parte1" ? PALETA_CORES.azul : PALETA_CORES.verde
+      const marker = L.circleMarker([pt.lat, pt.lon], {
+        radius: 6,
+        color: "#fff",
+        weight: 1.5,
+        fillColor: color,
+        fillOpacity: 0.9,
+      })
+      const formLabel = pt.form === "parte1" ? "Cadastro (Parte 1)" : "Direitos (Parte 2)"
+      const date = pt.data ? new Date(pt.data + "T12:00:00").toLocaleDateString("pt-BR") : ""
+      const accuracy = pt.accuracy > 0 ? ` · precisão ~${pt.accuracy}m` : ""
+      marker.bindPopup(
+        `<strong>${pt.cidade || "Município não informado"}</strong>${pt.uf ? ` — ${pt.uf}` : ""}` +
+        `${pt.bairro ? `<br/>${pt.bairro}` : ""}` +
+        `<br/>${pt.projectName}<br/>${formLabel}${date ? ` · ${date}` : ""}${accuracy}`
+      )
+      return marker
+    })
+    cluster.addLayers(markers)
+    map.addLayer(cluster)
+    return () => {
+      map.removeLayer(cluster)
+    }
+  }, [L, useMap, map, points])
+
+  return null
 }
 
-const DEFAULT_CENTER: [number, number] = [-20.5, -55.5]
-const DEFAULT_ZOOM = 6
+function MapResetter({ useMap, center, zoom }: { useMap: UseMapHook; center: [number, number]; zoom: number }) {
+  const map = useMap()
+  return (
+    <button
+      onClick={() => map.setView(center, zoom)}
+      className="absolute top-24 right-2 z-[1000] bg-background rounded-md shadow-md border border-border p-1.5 hover:bg-muted transition-colors"
+      title="Redefinir visualização"
+    >
+      <Home className="h-4 w-4" />
+    </button>
+  )
+}
 
-function MapRenderer({ data, mapKey, heightClass = "h-[400px]" }: { data: CityStat[]; mapKey?: number; heightClass?: string }) {
+function MapInvalidator({ useMap }: { useMap: UseMapHook }) {
+  const map = useMap()
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 300)
+    return () => clearTimeout(timer)
+  }, [map])
+  return null
+}
+
+function MapRenderer({ points, mapKey, heightClass = "h-[400px]" }: { points: MapPoint[]; mapKey?: number; heightClass?: string }) {
   const [MapComponents, setMapComponents] = useState<React.ReactNode | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     async function loadMap() {
       const L = (await import("leaflet")).default
-      await import("leaflet/dist/leaflet.css")
+      const { MapContainer, TileLayer, useMap } = await import("react-leaflet")
+      await import("leaflet.markercluster")
 
-      const { MapContainer, TileLayer, Marker, Popup, useMap } = await import("react-leaflet")
-
-      const icon = L.icon({
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-      })
-
-      const markers = data
-        .filter((item) => CITY_COORDS[item.city])
-        .map((item) => {
-          const coords = CITY_COORDS[item.city]
-          return (
-            <Marker key={item.city} position={coords} icon={icon}>
-              <Popup>
-                <strong>{item.city}</strong><br />
-                {item.projectName}<br />
-                {item.submissions} submissões
-              </Popup>
-            </Marker>
-          )
-        })
-
-      function MapResetter() {
-        const map = useMap()
-        return (
-          <button
-            onClick={() => map.setView(DEFAULT_CENTER, DEFAULT_ZOOM)}
-            className="absolute top-24 right-2 z-[1000] bg-white rounded-md shadow-md border border-gray-200 p-1.5 hover:bg-gray-100 transition-colors"
-            title="Redefinir visualização"
-          >
-            <Home className="h-4 w-4 text-gray-600" />
-          </button>
-        )
-      }
-
-      function MapInvalidator() {
-        const map = useMap()
-        useEffect(() => {
-          const timer = setTimeout(() => map.invalidateSize(), 300)
-          return () => clearTimeout(timer)
-        }, [map])
-        return null
-      }
-
-      setMapComponents(
+      const elements = (
         <div className={`relative ${heightClass}`}>
           <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="w-full h-full rounded-b-lg z-0">
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {markers}
-            <MapResetter />
-            <MapInvalidator />
+            <ClusterLayer L={L} useMap={useMap} points={points} />
+            <MapResetter useMap={useMap} center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} />
+            <MapInvalidator useMap={useMap} />
           </MapContainer>
         </div>
       )
+      if (!cancelled) setMapComponents(elements)
     }
     loadMap()
-  }, [data, mapKey, heightClass])
+    return () => {
+      cancelled = true
+    }
+  }, [points, mapKey, heightClass])
 
   return MapComponents || (
     <div className={`${heightClass} flex items-center justify-center text-muted-foreground`}>
@@ -108,7 +122,7 @@ function MapRenderer({ data, mapKey, heightClass = "h-[400px]" }: { data: CitySt
   )
 }
 
-export function CityMap({ data }: CityMapProps) {
+export function CityMap({ points }: CityMapProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMapKey, setDialogMapKey] = useState(0)
 
@@ -119,11 +133,21 @@ export function CityMap({ data }: CityMapProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Mapa dos Municípios</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardTitle className="text-lg">Mapa das Pessoas Idosas</CardTitle>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PALETA_CORES.azul }} />
+            Cadastro
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PALETA_CORES.verde }} />
+            Direitos
+          </span>
+        </div>
       </CardHeader>
       <CardContent className="p-0 relative">
-        <MapRenderer data={data} />
+        <MapRenderer points={points} />
         <div className="absolute top-3 right-3 z-10">
           <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
@@ -133,7 +157,7 @@ export function CityMap({ data }: CityMapProps) {
             </DialogTrigger>
             <DialogContent className="max-w-[95vw] max-h-[95vh]">
               <div className="flex items-center justify-between">
-                <DialogTitle className="text-xl">Mapa dos Municípios</DialogTitle>
+                <DialogTitle className="text-xl">Mapa das Pessoas Idosas</DialogTitle>
                 <DialogClose asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8">
                     <X className="h-4 w-4" />
@@ -141,7 +165,7 @@ export function CityMap({ data }: CityMapProps) {
                 </DialogClose>
               </div>
               <div className="overflow-hidden flex-1" style={{ height: "calc(90vh - 80px)" }}>
-                <MapRenderer key={dialogMapKey} data={data} heightClass="h-full" />
+                <MapRenderer key={dialogMapKey} points={points} heightClass="h-full" />
               </div>
             </DialogContent>
           </Dialog>

@@ -3,13 +3,21 @@ import {
   getKPIs, getSubmissionsTimeline, getCityStats,
   getAgentRanking, getDemographics, getRightsIndicators,
   getMultiSelectIndicators, getRightsIndicatorsByCity,
-  getMultiSelectIndicatorsByCity,
+  getMultiSelectIndicatorsByCity, getMapPoints,
 } from "@/lib/stats"
+import { getRequestScope, resolveProjectId } from "@/lib/scope"
+
+export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
+  const scope = await getRequestScope()
+  if (!scope.userId) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+  }
+
   const view = req.nextUrl.searchParams.get("view") || "overview"
   const projeto = req.nextUrl.searchParams.get("projeto")
-  const projectId = projeto ? Number(projeto) : undefined
+  const projectId = resolveProjectId(scope, projeto ? Number(projeto) : undefined)
 
   try {
     switch (view) {
@@ -48,6 +56,10 @@ export async function GET(req: NextRequest) {
       }
       case "multi-select-by-city": {
         const data = await getMultiSelectIndicatorsByCity(projectId)
+        return NextResponse.json(data)
+      }
+      case "pontos": {
+        const data = await getMapPoints(projectId)
         return NextResponse.json(data)
       }
       default:

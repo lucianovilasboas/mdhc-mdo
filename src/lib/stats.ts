@@ -1,33 +1,42 @@
-import { queryOData, getEntities, ActiveProject, fetchActiveProjects, fetchProjectFormIds, PROJECT_CITIES } from "./odk"
+import { queryOData, getEntities, getAllSubmissions, fetchActiveProjects, ActiveProject } from "./odk"
 import { getCached, setCache } from "./cache"
 import { log } from "./logger"
+import { RIGHTS_FIELDS } from "@/types"
 import type {
   TimelinePoint, CityStat, AgentStat, DemographicProfile,
   RightsIndicator, MultiSelectIndicator, MultiSelectItem,
-  CityMultiSelectEntry, CityRightsEntry,
+  CityMultiSelectEntry, CityRightsEntry, MapPoint,
 } from "@/types"
+
+/* ------------------------------------------------------------------ */
+/* Labels                                                              */
+/* ------------------------------------------------------------------ */
 
 const LABEL_MAP: Record<string, Record<string, string>> = {
   genero: {
     masculino: "Masculino", feminino: "Feminino",
-    outro: "Outro", "ns_nr": "Não sabe/Não respondeu",
+    outro: "Outro", nao_binario: "Não binário", "ns_nr": "Não sabe/Não respondeu",
   },
   cor_etnia: {
     branca: "Branca", preta: "Preta", parda: "Parda",
-    amarela: "Amarela", indígena: "Indígena", "ns_nr": "Não sabe",
+    amarela: "Amarela", indígena: "Indígena", indigena: "Indígena",
+    "ns_nr": "Não sabe",
   },
   escolaridade: {
-    analfabeto: "Analfabeto", fundamental_incompleto: "Fund. Incompleto",
+    analfabeto: "Analfabeto", nao_alfabetizado: "Não alfabetizado",
+    fundamental_incompleto: "Fund. Incompleto",
     fundamental_completo: "Fund. Completo", medio_incompleto: "Médio Incompleto",
     medio_completo: "Médio Completo", superior_incompleto: "Superior Incompleto",
-    superior_completo: "Superior Completo", "ns_nr": "Não sabe",
+    superior_completo: "Superior Completo", pos_graduacao_incompleta: "Pós incompleta",
+    pos_graduacao_completa: "Pós completa", "ns_nr": "Não sabe",
   },
   avaliacao_saude: {
     muito_boa: "Muito Boa", boa: "Boa", regular: "Regular",
     ruim: "Ruim", muito_ruim: "Muito Ruim", "ns_nr": "Não sabe",
   },
   renda: {
-    nenhuma: "Nenhuma", um_sm: "Até 1 SM",
+    nenhuma: "Nenhuma", sem_renda: "Sem renda",
+    um_sm: "Até 1 SM", ate_meio_sm: "Até meio SM",
     acima_um_ate_dois_sm: "1 a 2 SM", acima_dois_ate_quatro_sm: "2 a 4 SM",
     acima_quatro_sm: "Acima de 4 SM", "ns_nr": "Não sabe",
   },
@@ -37,12 +46,102 @@ function label(category: string, key: string) {
   return LABEL_MAP[category]?.[key] ?? key
 }
 
+/* ------------------------------------------------------------------ */
+/* Normalização de município                                           */
+/* ------------------------------------------------------------------ */
+
+const MUNICIPIO_CORRECOES: Record<string, string> = {
+  invinhema: "Ivinhema",
+}
+
+/** Corrige typos/acentos conhecidos nos nomes de município vindos do ODK. */
+export function normalizarMunicipio(nome: string): string {
+  const key = nome.trim().toLowerCase()
+  return MUNICIPIO_CORRECOES[key] ?? nome.trim()
+}
+
+interface OdkEntityLabel {
+  uuid: string
+  currentVersion?: { label?: string } | null
+}
+
+/** Extrai cidade/UF do label da entidade (formato "...|Bairro-Cidade/uf|uuid"). */
+function cidadeDaEntidade(e: OdkEntityLabel): { cidade: string; uf: string } | null {
+  const label = e.currentVersion?.label ?? ""
+  const afterPipe = label.split("|")[1] || ""
+  const match = afterPipe.match(/.*-([^/]+)\/([a-z]{2,3})$/i)
+  if (!match) return null
+  return { cidade: normalizarMunicipio(match[1]?.trim() ?? ""), uf: (match[2] ?? "").toUpperCase() }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tipos das submissões OData                                          */
+/* ------------------------------------------------------------------ */
+
+interface SubmissionRow {
+  preliminar?: {
+    nome_agente?: string
+    municipio?: string
+    municipio_nome?: string
+    uf?: string
+    bairro?: string
+    nome_pessoa_idosa?: string
+    pessoa_idosa?: string
+    localizacao?: {
+      coordinates?: number[]
+      properties?: { accuracy?: number }
+    }
+  }
+  entrevista?: Record<string, unknown>
+  __system?: { submissionDate?: string; submitterName?: string; submitterId?: string }
+  __id?: string
+}
+
+interface SocioDemo {
+  idade?: number
+  genero?: string
+  cor_etnia?: string
+  escolaridade?: string
+}
+
+interface TrabalhoRenda {
+  renda_familiar_mensal?: string
+  renda_individual_mensal?: string
+}
+
+interface CondicaoSaude {
+  avaliacao_saude?: string
+}
+
+function socioDemo(v: SubmissionRow): SocioDemo | undefined {
+  const s = v.entrevista?.aspectos_sociodemograficos
+  return s as SocioDemo | undefined
+}
+
+function trabalhoRenda(v: SubmissionRow): TrabalhoRenda | undefined {
+  const t = v.entrevista?.trabalho_renda
+  return t as TrabalhoRenda | undefined
+}
+
+function condicaoSaude(v: SubmissionRow): CondicaoSaude | undefined {
+  const c = v.entrevista?.condicao_geral_saude
+  return c as CondicaoSaude | undefined
+}
+
+/* ------------------------------------------------------------------ */
+/* Projetos                                                            */
+/* ------------------------------------------------------------------ */
+
 async function getProjects(projectId?: number): Promise<ActiveProject[]> {
   const all = await fetchActiveProjects()
   return projectId
     ? all.filter((p) => p.id === projectId)
     : all
 }
+
+/* ------------------------------------------------------------------ */
+/* KPIs                                                                */
+/* ------------------------------------------------------------------ */
 
 export async function getKPIs(projectId?: number) {
   const projects = await getProjects(projectId)
@@ -51,13 +150,14 @@ export async function getKPIs(projectId?: number) {
   let totalParte2 = 0
   let totalAgents = 0
   let lastSubmissionDate: string | null = null
+  const citySet = new Set<string>()
   const perProject: Record<number, { submissions: number; parte1: number; parte2: number; agents: number; idosos: number }> = {}
 
   for (const p of projects) {
     try {
       const [p1, p2, agents, idosos] = await Promise.all([
-        queryOData(p.id, "form_parte_1", 1).catch(() => ({ "@odata.count": 0 })),
-        queryOData(p.id, "form_parte_2", 1).catch(() => ({ "@odata.count": 0 })),
+        queryOData(p.id, "form_parte_1", 1).catch(() => ({ "@odata.count": 0, value: [] as unknown[] })),
+        queryOData(p.id, "form_parte_2", 1).catch(() => ({ "@odata.count": 0, value: [] as unknown[] })),
         getEntities(p.id, "Agentes").catch(() => []),
         getEntities(p.id, "pessoas_idosas").catch(() => []),
       ])
@@ -71,8 +171,14 @@ export async function getKPIs(projectId?: number) {
       totalAgents += agentCount
       perProject[p.id] = { submissions: c1 + c2, parte1: c1, parte2: c2, agents: agentCount, idosos: idosoCount }
 
+      for (const e of idosos) {
+        const c = cidadeDaEntidade(e)
+        if (c) citySet.add(`${p.id}:${c.cidade}`)
+      }
+
       for (const d of [p1, p2]) {
-        const sd = d.value?.[0]?.__system?.submissionDate
+        const value = d.value as unknown[] | undefined
+        const sd = (value?.[0] as SubmissionRow | undefined)?.__system?.submissionDate
         if (sd && (!lastSubmissionDate || sd > lastSubmissionDate)) lastSubmissionDate = sd
       }
     } catch {
@@ -80,11 +186,7 @@ export async function getKPIs(projectId?: number) {
     }
   }
 
-  const totalCities = projects.reduce(
-    (acc, p) => acc + (PROJECT_CITIES[p.id]?.length ?? 1), 0
-  )
-
-  log("stats", "getKPIs", { projects: projects.length, totalIdosos, totalParte1, totalParte2, totalAgents, lastSubmissionDate })
+  log("stats", "getKPIs", { projects: projects.length, totalIdosos, totalParte1, totalParte2, totalAgents, lastSubmissionDate, cities: citySet.size })
 
   return {
     totalIdosos,
@@ -92,12 +194,16 @@ export async function getKPIs(projectId?: number) {
     totalParte1,
     totalParte2,
     totalProjects: projects.length,
-    totalCities,
+    totalCities: citySet.size,
     totalAgents,
     lastSubmissionDate,
     perProject,
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Timeline                                                            */
+/* ------------------------------------------------------------------ */
 
 const TIMELINE_CACHE_TTL = 5 * 60 * 1000
 
@@ -108,19 +214,17 @@ export async function getSubmissionsTimeline(projectId?: number, city?: string):
 
   const projects = await getProjects(projectId)
   const daily: Record<string, TimelinePoint> = {}
+  const filterCity = city ? normalizarMunicipio(city) : ""
 
   for (const p of projects) {
     let cityLookup: Record<string, string> | null = null
-    if (city) {
+    if (filterCity) {
       try {
-        const entities = await getEntities(p.id, "pessoas_idosas").catch(() => [])
+        const entities = await getEntities(p.id, "pessoas_idosas")
         cityLookup = {}
         for (const e of entities) {
-          const label = (e.currentVersion?.label as string) || ""
-          const afterPipe = label.split("|")[1] || ""
-          const match = afterPipe.match(/.*-([^/]+)\/[a-z]{2,3}$/i)
-          const entityCity = match?.[1]?.trim()
-          if (entityCity) cityLookup[e.uuid] = entityCity
+          const c = cidadeDaEntidade(e)
+          if (c) cityLookup[e.uuid] = c.cidade
         }
       } catch {
         cityLookup = {}
@@ -129,17 +233,16 @@ export async function getSubmissionsTimeline(projectId?: number, city?: string):
 
     for (const form of ["form_parte_1", "form_parte_2"]) {
       try {
-        const data = await queryOData(p.id, form, 1000)
-        const values = data.value ?? []
+        const values = await getAllSubmissions(p.id, form) as SubmissionRow[]
         for (const v of values) {
-          if (city) {
+          if (filterCity) {
             if (form === "form_parte_1") {
-              const submissionCity = v.preliminar?.municipio_nome || ""
-              if (submissionCity.toLowerCase() !== city.toLowerCase()) continue
+              const submissionCity = normalizarMunicipio(v.preliminar?.municipio_nome ?? "")
+              if (submissionCity.toLowerCase() !== filterCity.toLowerCase()) continue
             } else {
-              const uuid = v.preliminar?.pessoa_idosa || ""
-              const entityCity = cityLookup?.[uuid] || ""
-              if (entityCity.toLowerCase() !== city.toLowerCase()) continue
+              const uuid = v.preliminar?.pessoa_idosa ?? ""
+              const entityCity = normalizarMunicipio(cityLookup?.[uuid] ?? "")
+              if (entityCity.toLowerCase() !== filterCity.toLowerCase()) continue
             }
           }
           const date = v.__system?.submissionDate
@@ -163,6 +266,10 @@ export async function getSubmissionsTimeline(projectId?: number, city?: string):
   return result
 }
 
+/* ------------------------------------------------------------------ */
+/* Municípios                                                          */
+/* ------------------------------------------------------------------ */
+
 export async function getCityStats(projectId?: number): Promise<CityStat[]> {
   const projects = await getProjects(projectId)
   const stats: Record<string, CityStat> = {}
@@ -172,13 +279,10 @@ export async function getCityStats(projectId?: number): Promise<CityStat[]> {
       const entities = await getEntities(p.id, "pessoas_idosas").catch(() => [])
       const cityCount: Record<string, { count: number; uf: string }> = {}
       for (const e of entities) {
-        const label = (e.currentVersion?.label as string) || ""
-        const afterPipe = label.split("|")[1] || ""
-        const match = afterPipe.match(/.*-([^/]+)\/([a-z]{2,3})$/i)
-        const city = match?.[1]?.trim() || "desconhecido"
-        const uf = (match?.[2]?.toUpperCase()) || ""
-        if (!cityCount[city]) cityCount[city] = { count: 0, uf }
-        cityCount[city].count++
+        const c = cidadeDaEntidade(e)
+        if (!c) continue
+        if (!cityCount[c.cidade]) cityCount[c.cidade] = { count: 0, uf: c.uf }
+        cityCount[c.cidade].count++
       }
       for (const [city, info] of Object.entries(cityCount)) {
         const key = `${p.id}-${city}`
@@ -196,6 +300,10 @@ export async function getCityStats(projectId?: number): Promise<CityStat[]> {
   return Object.values(stats).sort((a, b) => b.submissions - a.submissions)
 }
 
+/* ------------------------------------------------------------------ */
+/* Agentes                                                             */
+/* ------------------------------------------------------------------ */
+
 export async function getAgentRanking(projectId?: number): Promise<AgentStat[]> {
   const projects = await getProjects(projectId)
   const agentMap: Record<string, AgentStat> = {}
@@ -207,7 +315,7 @@ export async function getAgentRanking(projectId?: number): Promise<AgentStat[]> 
       const entities = await getEntities(p.id, "Agentes")
       const lookup: Record<string, string> = {}
       for (const e of entities) {
-        const name = (e.currentVersion?.label as string)?.split(" - ")[0]?.trim()
+        const name = (e.currentVersion?.label as string | undefined)?.split(" - ")[0]?.trim()
         if (name) lookup[name.toLowerCase()] = name
       }
       entityLookup[p.id] = lookup
@@ -219,18 +327,17 @@ export async function getAgentRanking(projectId?: number): Promise<AgentStat[]> 
   for (const p of projects) {
     for (const form of ["form_parte_1", "form_parte_2"]) {
       try {
-        const data = await queryOData(p.id, form, 500)
-        const values = data.value ?? []
+        const values = await getAllSubmissions(p.id, form) as SubmissionRow[]
         for (const v of values) {
           const rawName = v.preliminar?.nome_agente || v.__system?.submitterName || "desconhecido"
           const normalized = rawName.trim().toLowerCase()
           const canonicalName = entityLookup[p.id]?.[normalized] || rawName.trim()
-          const city = v.preliminar?.municipio_nome || ""
+          const city = normalizarMunicipio(v.preliminar?.municipio_nome ?? "")
           if (!agentMap[canonicalName]) {
             agentMap[canonicalName] = {
               name: canonicalName, projectId: p.id, projectName: p.name,
               city, submissions: 0, parte1: 0, parte2: 0,
-              lastSubmission: v.__system?.submissionDate || "",
+              lastSubmission: v.__system?.submissionDate ?? "",
             }
           }
           agentMap[canonicalName].submissions++
@@ -249,6 +356,10 @@ export async function getAgentRanking(projectId?: number): Promise<AgentStat[]> 
     .sort((a, b) => b.submissions - a.submissions)
 }
 
+/* ------------------------------------------------------------------ */
+/* Perfil demográfico                                                  */
+/* ------------------------------------------------------------------ */
+
 export async function getDemographics(projectId?: number): Promise<DemographicProfile> {
   const projects = await getProjects(projectId)
   const idade: Record<string, number> = { "60-69": 0, "70-79": 0, "80+": 0 }
@@ -256,14 +367,14 @@ export async function getDemographics(projectId?: number): Promise<DemographicPr
   const cor_etnia: Record<string, number> = {}
   const escolaridade: Record<string, number> = {}
   const renda: Record<string, number> = {}
+  const rendaFamiliar: Record<string, number> = {}
   const avaliacao_saude: Record<string, number> = {}
 
   for (const p of projects) {
     try {
-      const data = await queryOData(p.id, "form_parte_1", 500)
-      const values = data.value ?? []
+      const values = await getAllSubmissions(p.id, "form_parte_1") as SubmissionRow[]
       for (const v of values) {
-        const s = v.entrevista?.aspectos_sociodemograficos
+        const s = socioDemo(v)
         if (s?.idade) {
           if (s.idade < 70) idade["60-69"]++
           else if (s.idade < 80) idade["70-79"]++
@@ -273,11 +384,11 @@ export async function getDemographics(projectId?: number): Promise<DemographicPr
         if (s?.cor_etnia) cor_etnia[s.cor_etnia] = (cor_etnia[s.cor_etnia] || 0) + 1
         if (s?.escolaridade) escolaridade[s.escolaridade] = (escolaridade[s.escolaridade] || 0) + 1
 
-        const tr = v.entrevista?.trabalho_renda
+        const tr = trabalhoRenda(v)
         if (tr?.renda_individual_mensal) renda[tr.renda_individual_mensal] = (renda[tr.renda_individual_mensal] || 0) + 1
-        if (tr?.renda_familiar_mensal) renda[tr.renda_familiar_mensal] = (renda[tr.renda_familiar_mensal] || 0) + 1
+        if (tr?.renda_familiar_mensal) rendaFamiliar[tr.renda_familiar_mensal] = (rendaFamiliar[tr.renda_familiar_mensal] || 0) + 1
 
-        const cs = v.entrevista?.condicao_geral_saude
+        const cs = condicaoSaude(v)
         if (cs?.avaliacao_saude) avaliacao_saude[cs.avaliacao_saude] = (avaliacao_saude[cs.avaliacao_saude] || 0) + 1
       }
     } catch {
@@ -291,44 +402,24 @@ export async function getDemographics(projectId?: number): Promise<DemographicPr
     cor_etnia: Object.entries(cor_etnia).map(([k, count]) => ({ label: label("cor_etnia", k), count })),
     escolaridade: Object.entries(escolaridade).map(([k, count]) => ({ label: label("escolaridade", k), count })),
     renda: Object.entries(renda).map(([k, count]) => ({ label: label("renda", k), count })),
+    rendaFamiliar: Object.entries(rendaFamiliar).map(([k, count]) => ({ label: label("renda", k), count })),
     avaliacao_saude: Object.entries(avaliacao_saude).map(([k, count]) => ({ label: label("avaliacao_saude", k), count })),
   }
 }
 
-const RIGHTS_FIELDS = [
-  { key: "discriminacao", name: "Sofreu discriminação" },
-  { key: "sofreu_violencia", name: "Sofreu violência" },
-  { key: "impedido_opinar", name: "Impedido de opinar" },
-  { key: "impedido_decidir", name: "Impedido de decidir" },
-  { key: "dificuldade_saude", name: "Dificuldade acesso à saúde" },
-  { key: "dificuldade_educacao", name: "Dificuldade acesso à educação" },
-  { key: "dificuldade_beneficios", name: "Dificuldade acesso a benefícios" },
-  { key: "moradia_inadequada", name: "Moradia inadequada" },
-  { key: "falta_servicos_publicos", name: "Falta de serviços públicos" },
-  { key: "dificuldade_acesso_justica", name: "Dificuldade acesso à justiça" },
-  { key: "tratado_por_idade", name: "Tratado diferente por idade" },
-  { key: "barreiras_acessibilidade", name: "Barreiras de acessibilidade" },
-  { key: "risco_desastre_violencia", name: "Risco de desastre/violência" },
-  { key: "injustica_legal", name: "Injustiça legal" },
-  { key: "acamado_domiciliado", name: "Acamado/Domiciliado" },
-  { key: "dificuldade_cuidados", name: "Dificuldade com cuidados" },
-  { key: "dificuldade_votacao", name: "Dificuldade para votar" },
-  { key: "impedido_participacao_atividades", name: "Impedido de participar de atividades" },
-  { key: "impedido_reuniao_manifestacao", name: "Impedido de reunião/manifestação" },
-  { key: "impedido_utilizar_bem", name: "Impedido de utilizar bem público" },
-  { key: "invasao_privacidade", name: "Invasão de privacidade" },
-  { key: "preso_ilegal", name: "Preso ilegalmente" },
-  { key: "profissionais_nao_explicaram", name: "Profissionais não explicaram" },
-  { key: "vida_ameacada", name: "Vida ameaçada" },
-]
+/* ------------------------------------------------------------------ */
+/* Direitos (Parte 2)                                                  */
+/* ------------------------------------------------------------------ */
 
-function computeRights(values: unknown[], fields: typeof RIGHTS_FIELDS): Record<string, { sim: number; nao: number; total: number }> {
-  const rights: Record<string, { sim: number; nao: number; total: number }> = {}
+type RightsTotals = Record<string, { sim: number; nao: number; total: number }>
+
+function computeRights(values: SubmissionRow[], fields: readonly { key: string; name: string }[]): RightsTotals {
+  const rights: RightsTotals = {}
   for (const f of fields) {
     rights[f.key] = { sim: 0, nao: 0, total: 0 }
   }
   for (const v of values) {
-    const e = (v as any).entrevista
+    const e = v.entrevista
     if (!e) continue
     for (const f of fields) {
       const val = e[f.key]
@@ -340,7 +431,7 @@ function computeRights(values: unknown[], fields: typeof RIGHTS_FIELDS): Record<
   return rights
 }
 
-function rightsFromTotals(totals: Record<string, { sim: number; nao: number; total: number }>, fields: typeof RIGHTS_FIELDS): RightsIndicator[] {
+function rightsFromTotals(totals: RightsTotals, fields: readonly { key: string; name: string }[]): RightsIndicator[] {
   return fields.map((f) => ({
     ...f,
     ...totals[f.key],
@@ -352,16 +443,14 @@ function rightsFromTotals(totals: Record<string, { sim: number; nao: number; tot
 
 export async function getRightsIndicators(projectId?: number): Promise<RightsIndicator[]> {
   const projects = await getProjects(projectId)
-  const rights: Record<string, { sim: number; nao: number; total: number }> = {}
-
+  const rights: RightsTotals = {}
   for (const f of RIGHTS_FIELDS) {
     rights[f.key] = { sim: 0, nao: 0, total: 0 }
   }
 
   for (const p of projects) {
     try {
-      const data = await queryOData(p.id, "form_parte_2", 500)
-      const values = data.value ?? []
+      const values = await getAllSubmissions(p.id, "form_parte_2") as SubmissionRow[]
       const pr = computeRights(values, RIGHTS_FIELDS)
       for (const f of RIGHTS_FIELDS) {
         rights[f.key].sim += pr[f.key].sim
@@ -375,6 +464,10 @@ export async function getRightsIndicators(projectId?: number): Promise<RightsInd
 
   return rightsFromTotals(rights, RIGHTS_FIELDS)
 }
+
+/* ------------------------------------------------------------------ */
+/* Multi-select (desdobramentos)                                       */
+/* ------------------------------------------------------------------ */
 
 const MULTI_SELECT_FIELDS = [
   {
@@ -435,13 +528,10 @@ const MULTI_SELECT_FIELDS = [
   },
 ]
 
-interface Parte2Row {
-  preliminar?: { pessoa_idosa?: string }
-  entrevista?: Record<string, unknown>
-}
+type MultiTotals = Record<string, { gateSim: number; items: Record<string, number> }>
 
-function newMultiSelectTotals(): Record<string, { gateSim: number; items: Record<string, number> }> {
-  const totals: Record<string, { gateSim: number; items: Record<string, number> }> = {}
+function newMultiSelectTotals(): MultiTotals {
+  const totals: MultiTotals = {}
   for (const f of MULTI_SELECT_FIELDS) {
     const items: Record<string, number> = {}
     for (const it of f.items) items[it.key] = 0
@@ -450,7 +540,7 @@ function newMultiSelectTotals(): Record<string, { gateSim: number; items: Record
   return totals
 }
 
-function accumulateMultiSelect(values: Parte2Row[], totals: Record<string, { gateSim: number; items: Record<string, number> }>): void {
+function accumulateMultiSelect(values: SubmissionRow[], totals: MultiTotals): void {
   for (const v of values) {
     const e = v.entrevista
     if (!e) continue
@@ -466,7 +556,7 @@ function accumulateMultiSelect(values: Parte2Row[], totals: Record<string, { gat
   }
 }
 
-function multiSelectFromTotals(totals: Record<string, { gateSim: number; items: Record<string, number> }>): MultiSelectIndicator[] {
+function multiSelectFromTotals(totals: MultiTotals): MultiSelectIndicator[] {
   return MULTI_SELECT_FIELDS.map((f) => ({
     key: f.key,
     name: f.name,
@@ -493,8 +583,8 @@ export async function getMultiSelectIndicators(projectId?: number): Promise<Mult
 
   for (const p of projects) {
     try {
-      const data = await queryOData(p.id, "form_parte_2", 500)
-      accumulateMultiSelect(data.value ?? [], totals)
+      const values = await getAllSubmissions(p.id, "form_parte_2") as SubmissionRow[]
+      accumulateMultiSelect(values, totals)
     } catch {
       /* skip */
     }
@@ -503,31 +593,55 @@ export async function getMultiSelectIndicators(projectId?: number): Promise<Mult
   return multiSelectFromTotals(totals)
 }
 
+/* ------------------------------------------------------------------ */
+/* Direitos e multi-select por município                               */
+/* ------------------------------------------------------------------ */
+
+interface CityAccumulator {
+  city: string
+  projectName: string
+  projectId: number
+  totals: MultiTotals
+}
+
+interface CityRightsAccumulator {
+  city: string
+  projectName: string
+  projectId: number
+  totals: RightsTotals
+}
+
+async function buildCityLookup(projectId: number): Promise<Record<string, { cidade: string; uf: string }>> {
+  try {
+    const entities = await getEntities(projectId, "pessoas_idosas").catch(() => [])
+    const lookup: Record<string, { cidade: string; uf: string }> = {}
+    for (const e of entities) {
+      const c = cidadeDaEntidade(e)
+      if (c) lookup[e.uuid] = c
+    }
+    return lookup
+  } catch {
+    return {}
+  }
+}
+
 export async function getMultiSelectIndicatorsByCity(projectId?: number): Promise<CityMultiSelectEntry[]> {
   const projects = await getProjects(projectId)
-  const cityMap: Record<string, { city: string; projectName: string; projectId: number; totals: Record<string, { gateSim: number; items: Record<string, number> }> }> = {}
+  const cityMap: Record<string, CityAccumulator> = {}
 
   for (const p of projects) {
     try {
-      const entities = await getEntities(p.id, "pessoas_idosas").catch(() => [])
-      const cityLookup: Record<string, string> = {}
-      for (const e of entities) {
-        const label = (e.currentVersion?.label as string) || ""
-        const afterPipe = label.split("|")[1] || ""
-        const match = afterPipe.match(/.*-([^/]+)\/[a-z]{2,3}$/)
-        const city = match?.[1]?.trim()
-        if (city) cityLookup[e.uuid] = city
-      }
+      const cityLookup = await buildCityLookup(p.id)
 
-      const p2 = await queryOData(p.id, "form_parte_2", 500)
-      for (const v of p2.value ?? []) {
+      const values = await getAllSubmissions(p.id, "form_parte_2") as SubmissionRow[]
+      for (const v of values) {
         const uuid = v.preliminar?.pessoa_idosa
         if (!uuid) continue
-        const city = cityLookup[uuid] || "desconhecido"
-        if (city === "desconhecido") continue
-        const key = `${p.id}-${city}`
+        const c = cityLookup[uuid]
+        if (!c) continue
+        const key = `${p.id}-${c.cidade}`
         if (!cityMap[key]) {
-          cityMap[key] = { city, projectName: p.name, projectId: p.id, totals: newMultiSelectTotals() }
+          cityMap[key] = { city: c.cidade, projectName: p.name, projectId: p.id, totals: newMultiSelectTotals() }
         }
         accumulateMultiSelect([v], cityMap[key].totals)
       }
@@ -546,43 +660,31 @@ export async function getMultiSelectIndicatorsByCity(projectId?: number): Promis
 
 export async function getRightsIndicatorsByCity(projectId?: number): Promise<CityRightsEntry[]> {
   const projects = await getProjects(projectId)
-  const cityMap: Record<string, { city: string; projectName: string; projectId: number; totals: Record<string, { sim: number; nao: number; total: number }> }> = {}
+  const cityMap: Record<string, CityRightsAccumulator> = {}
 
   for (const p of projects) {
     try {
-      // Build cidade lookup from pessoas_idosas entity labels
-      const entities = await getEntities(p.id, "pessoas_idosas").catch(() => [])
-      const cityLookup: Record<string, string> = {}
-      for (const e of entities) {
-        const label = (e.currentVersion?.label as string) || ""
-        const afterPipe = label.split("|")[1] || ""
-        const match = afterPipe.match(/.*-([^/]+)\/[a-z]{2,3}$/)
-        const city = match?.[1]?.trim()
-        if (city) cityLookup[e.uuid] = city
-      }
+      const cityLookup = await buildCityLookup(p.id)
 
-      // Process form_parte_2 using pessoa_idosa (entity UUID) to lookup city
-      const p2 = await queryOData(p.id, "form_parte_2", 500)
-      for (const v of p2.value ?? []) {
-        const uuid = (v as any).preliminar?.pessoa_idosa
+      const values = await getAllSubmissions(p.id, "form_parte_2") as SubmissionRow[]
+      for (const v of values) {
+        const uuid = v.preliminar?.pessoa_idosa
         if (!uuid) continue
-        const city = cityLookup[uuid] || "desconhecido"
-        if (city === "desconhecido") continue
-        const key = `${p.id}-${city}`
+        const c = cityLookup[uuid]
+        if (!c) continue
+        const key = `${p.id}-${c.cidade}`
         if (!cityMap[key]) {
-          const totals: Record<string, { sim: number; nao: number; total: number }> = {}
+          const totals: RightsTotals = {}
           for (const f of RIGHTS_FIELDS) {
             totals[f.key] = { sim: 0, nao: 0, total: 0 }
           }
-          cityMap[key] = { city, projectName: p.name, projectId: p.id, totals }
+          cityMap[key] = { city: c.cidade, projectName: p.name, projectId: p.id, totals }
         }
-        const e = (v as any).entrevista
-        if (!e) continue
+        const pr = computeRights([v], RIGHTS_FIELDS)
         for (const f of RIGHTS_FIELDS) {
-          const val = e[f.key]
-          if (val === "sim") cityMap[key].totals[f.key].sim++
-          else if (val === "nao") cityMap[key].totals[f.key].nao++
-          cityMap[key].totals[f.key].total++
+          cityMap[key].totals[f.key].sim += pr[f.key].sim
+          cityMap[key].totals[f.key].nao += pr[f.key].nao
+          cityMap[key].totals[f.key].total += pr[f.key].total
         }
       }
     } catch {
@@ -597,7 +699,85 @@ export async function getRightsIndicatorsByCity(projectId?: number): Promise<Cit
     indicators: rightsFromTotals(entry.totals, RIGHTS_FIELDS),
   }))
 
-  log("stats", "getRightsIndicatorsByCity", { cities: result.map(r => `${r.city}(${r.indicators.reduce((s,i) => s + i.sim, 0)})`) })
+  log("stats", "getRightsIndicatorsByCity", { cities: result.map(r => `${r.city}(${r.indicators.reduce((s, i) => s + i.sim, 0)})`) })
 
   return result
+}
+
+/* ------------------------------------------------------------------ */
+/* Mapa de pontos (localização das pessoas idosas)                     */
+/* ------------------------------------------------------------------ */
+
+const MAP_POINTS_TTL = 10 * 60 * 1000
+
+const MAP_FORMS = [
+  { form: "parte1", formId: "form_parte_1" },
+  { form: "parte2", formId: "form_parte_2" },
+] as const
+
+/**
+ * Pontos geográficos por submissão com localização preenchida.
+ * Só entram registros cujo formulário capturou coordenadas (sem viés de cidade).
+ */
+export async function getMapPoints(projectId?: number): Promise<MapPoint[]> {
+  const cacheKey = `map-points:${projectId ?? "all"}`
+  const cached = getCached(cacheKey)
+  if (cached) return cached as MapPoint[]
+
+  const projects = await getProjects(projectId)
+  const points: MapPoint[] = []
+
+  for (const p of projects) {
+    let cityLookup: Record<string, { cidade: string; uf: string }> = {}
+    try {
+      cityLookup = await buildCityLookup(p.id)
+    } catch {
+      cityLookup = {}
+    }
+
+    for (const { form, formId } of MAP_FORMS) {
+      try {
+        const count = await queryOData(p.id, formId, 1).catch(() => ({ "@odata.count": 0 }))
+        if (!count["@odata.count"]) continue
+        const values = await getAllSubmissions(p.id, formId) as SubmissionRow[]
+        for (const v of values) {
+          const coords = v.preliminar?.localizacao?.coordinates
+          if (!coords || coords.length < 2) continue
+          const lon = coords[0]
+          const lat = coords[1]
+          if (typeof lon !== "number" || typeof lat !== "number" || !Number.isFinite(lat) || !Number.isFinite(lon)) continue
+
+          let cidade = ""
+          let uf = ""
+          if (form === "parte1") {
+            cidade = normalizarMunicipio(v.preliminar?.municipio_nome ?? "")
+            uf = (v.preliminar?.uf ?? "").toUpperCase()
+          } else {
+            const c = cityLookup[v.preliminar?.pessoa_idosa ?? ""]
+            cidade = c?.cidade ?? ""
+            uf = c?.uf ?? ""
+          }
+
+          points.push({
+            lat: Number(lat.toFixed(5)),
+            lon: Number(lon.toFixed(5)),
+            accuracy: Math.round(v.preliminar?.localizacao?.properties?.accuracy ?? 0),
+            cidade,
+            uf,
+            bairro: (v.preliminar?.bairro ?? "").trim(),
+            projectId: p.id,
+            projectName: p.name,
+            form,
+            data: v.__system?.submissionDate?.slice(0, 10) ?? "",
+          })
+        }
+      } catch {
+        /* skip */
+      }
+    }
+  }
+
+  setCache(cacheKey, points, MAP_POINTS_TTL)
+  log("stats", "getMapPoints", { projects: projects.length, points: points.length })
+  return points
 }

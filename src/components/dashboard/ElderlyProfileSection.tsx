@@ -12,6 +12,27 @@ interface ElderlyProfileSectionProps {
   data: DemographicProfile
 }
 
+function RendaBars({ titulo, data }: { titulo: string; data: { label: string; count: number }[] }) {
+  return (
+    <div>
+      <h4 className="text-sm font-medium mb-2">{titulo}</h4>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis dataKey="label" tick={{ fontSize: 9 }} angle={-30} />
+          <YAxis />
+          <Tooltip />
+          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+            {data.map((entry, i) => (
+              <Cell key={entry.label} fill={CORES_DONUT[i % CORES_DONUT.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 function labelFaixa({ faixa, count }: { faixa: string; count: number }): string {
   return `${faixa}: ${count}`
 }
@@ -105,20 +126,11 @@ export function ElderlyProfileSection({ data }: ElderlyProfileSectionProps) {
           </div>
 
           <div>
-            <h4 className="text-sm font-medium mb-2">Renda Individual</h4>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={data.renda}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="label" tick={{ fontSize: 9 }} angle={-30} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {data.renda.map((entry, i) => (
-                    <Cell key={entry.label} fill={CORES_DONUT[i % CORES_DONUT.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <h4 className="text-sm font-medium mb-2">Renda</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <RendaBars titulo="Renda Individual" data={data.renda} />
+              <RendaBars titulo="Renda Familiar" data={data.rendaFamiliar} />
+            </div>
           </div>
 
           <div>

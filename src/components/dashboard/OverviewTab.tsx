@@ -6,7 +6,7 @@ import { CityDistribution } from "@/components/dashboard/CityDistribution"
 import { CityMap } from "@/components/dashboard/CityMap"
 import { LoadingCard, ErrorCard, KpiCardsSkeleton } from "@/components/dashboard/LoadingCard"
 import { useOdkData } from "@/components/dashboard/useOdkData"
-import type { CityStat, TimelinePoint, KpiOverview } from "@/types"
+import type { CityStat, TimelinePoint, KpiOverview, MapPoint } from "@/types"
 
 function KpiCardsWidget({ projectId }: { projectId?: number }) {
   const overview = useOdkData<KpiOverview>("overview", projectId)
@@ -62,15 +62,15 @@ function CityDistributionWidget({ projectId }: { projectId?: number }) {
 }
 
 function CityMapWidget({ projectId }: { projectId?: number }) {
-  const byCity = useOdkData<CityStat[]>("by-city", projectId)
+  const pontos = useOdkData<MapPoint[]>("pontos", projectId)
 
-  if (byCity.error && !byCity.data) {
-    return <ErrorCard message={byCity.error} onRetry={byCity.recarregar} label="Não foi possível carregar o mapa" height={400} />
+  if (pontos.error && !pontos.data) {
+    return <ErrorCard message={pontos.error} onRetry={pontos.recarregar} label="Não foi possível carregar o mapa" height={400} />
   }
-  if (byCity.loading && !byCity.data) return <LoadingCard label="Carregando mapa..." height={400} />
-  const data = byCity.data ?? []
+  if (pontos.loading && !pontos.data) return <LoadingCard label="Carregando mapa..." height={400} />
+  const data = pontos.data ?? []
   if (data.length === 0) return null
-  return <CityMap data={data} />
+  return <CityMap points={data} />
 }
 
 export function OverviewTab({ projectId }: { projectId?: number }) {

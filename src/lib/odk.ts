@@ -15,26 +15,43 @@ async function getToken(): Promise<string> {
     body: JSON.stringify({ email: USERNAME, password: PASSWORD }),
   })
   if (!res.ok) throw new Error(`ODK auth failed: ${res.status}`)
-  const data = await res.json()
-  _token = data.token
-  return _token!
+  const data = (await res.json()) as { token?: string }
+  _token = data.token ?? null
+  if (!_token) throw new Error("ODK auth: token ausente")
+  return _token
 }
 
-const inflight = new Map<string, Promise<any>>()
+const inflight = new Map<string, Promise<unknown>>()
 const NEGATIVE_TTL = 5 * 60 * 1000
 const NEGATIVE_CACHE_PREFIX = "__404__"
 
 function isNegativeCached(path: string): boolean {
-  const entry = getCached(NEGATIVE_CACHE_PREFIX + path)
-  if (entry !== null) return true
-  return false
+  return getCached(NEGATIVE_CACHE_PREFIX + path) !== null
 }
 
 function setNegativeCache(path: string): void {
   setCache(NEGATIVE_CACHE_PREFIX + path, null, NEGATIVE_TTL)
 }
 
-async function odkFetch(path: string, init?: RequestInit): Promise<any> {
+export interface OdkListResponse {
+  "@odata.count"?: number
+  value?: unknown[]
+  [key: string]: unknown
+}
+
+export interface OdkEntity {
+  uuid: string
+  currentVersion: { label?: string } | null
+}
+
+export interface OdkProject {
+  id: number
+  name: string
+  archived: boolean
+  [key: string]: unknown
+}
+
+async function odkFetch(path: string, init?: RequestInit): Promise<unknown> {
   if (isNegativeCached(path)) {
     throw new Error(`ODK API cached 404: ${path}`)
   }
@@ -84,8 +101,8 @@ export async function queryOData(
   formId: string,
   top?: number,
   skip?: number,
-  filter?: string
-) {
+  filter?: string,
+): Promise<OdkListResponse> {
   const params = new URLSearchParams()
   if (top) params.set("$top", String(top))
   if (skip) params.set("$skip", String(skip))
@@ -93,52 +110,60 @@ export async function queryOData(
   params.set("$count", "true")
   const qs = params.toString()
   const path = `/v1/projects/${projectId}/forms/${encodeURIComponent(formId)}.svc/Submissions${qs ? `?${qs}` : ""}`
-  return odkFetch(path)
+  return odkFetch(path) as Promise<OdkListResponse>
 }
 
 export async function getEntities(
   projectId: number,
   datasetName: string,
-) {
-  return odkFetch(`/v1/projects/${projectId}/datasets/${encodeURIComponent(datasetName)}/entities`)
+): Promise<OdkEntity[]> {
+  return odkFetch(`/v1/projects/${projectId}/datasets/${encodeURIComponent(datasetName)}/entities`) as Promise<OdkEntity[]>
 }
 
 export async function getSubmissionsCount(
   projectId: number,
-  formId: string
+  formId: string,
 ): Promise<number> {
   const data = await queryOData(projectId, formId, 1)
   return data["@odata.count"] ?? 0
 }
 
+/**
+ * Busca TODAS as submissões de um formulário (paginação em lotes de 200),
+ * sem teto artificial de 500/1000 registros.
+ */
 export async function getAllSubmissions(
   projectId: number,
   formId: string,
-  maxResults = 1000
-) {
+): Promise<unknown[]> {
   const all: unknown[] = []
   let skip = 0
   const batch = 200
-  while (skip < maxResults) {
+  const MAX_ROWS = 50_000
+  for (;;) {
     const data = await queryOData(projectId, formId, batch, skip)
     const values = data.value ?? []
     all.push(...values)
     if (values.length < batch) break
     skip += batch
+    if (all.length >= MAX_ROWS) {
+      log("odk", "getAllSubmissions limite de segurança", { projectId, formId, total: all.length })
+      break
+    }
   }
   return all
 }
 
-export async function getProjectForms(projectId: number) {
-  return odkFetch(`/v1/projects/${projectId}/forms`)
+export async function getProjectForms(projectId: number): Promise<{ xmlFormId?: string }[]> {
+  return odkFetch(`/v1/projects/${projectId}/forms`) as Promise<{ xmlFormId?: string }[]>
 }
 
 export async function getProject(projectId: number) {
   return odkFetch(`/v1/projects/${projectId}`)
 }
 
-export async function getProjects() {
-  return odkFetch("/v1/projects")
+export async function getProjects(): Promise<OdkProject[]> {
+  return odkFetch("/v1/projects") as Promise<OdkProject[]>
 }
 
 export interface ActiveProject {
@@ -153,8 +178,10 @@ export async function fetchActiveProjects(): Promise<ActiveProject[]> {
   const now = Date.now()
   if (_projCache && now - _projCache.ts < 300_000) return _projCache.data
   try {
-    const data: any[] = await getProjects()
-    const list = data.filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, uf: "" }))
+    const data = await getProjects()
+    const list = data
+      .filter((p) => !p.archived)
+      .map((p) => ({ id: p.id, name: p.name, uf: "" }))
     list.sort((a, b) => b.id - a.id)
     _projCache = { data: list, ts: now }
     return list
@@ -163,14 +190,14 @@ export async function fetchActiveProjects(): Promise<ActiveProject[]> {
   }
 }
 
-let _formsCache: Record<number, { data: string[]; ts: number }> = {}
+const _formsCache: Record<number, { data: string[]; ts: number }> = {}
 
 export async function fetchProjectFormIds(projectId: number): Promise<string[]> {
   const cached = _formsCache[projectId]
   if (cached && Date.now() - cached.ts < 300_000) return cached.data
   try {
-    const data: any[] = await getProjectForms(projectId)
-    const ids = data.map((f) => f.xmlFormId)
+    const data = await getProjectForms(projectId)
+    const ids = data.map((f) => f.xmlFormId ?? "")
     const parte = ids.filter((id) => id.startsWith("form_parte"))
     const result = parte.length > 0 ? parte : ids
     _formsCache[projectId] = { data: result, ts: Date.now() }
@@ -192,8 +219,11 @@ export const ACTIVE_PROJECTS = [
   { id: 10, name: "IFSP - Guarulhos", uf: "SP" },
   { id: 11, name: "IFSP - Presidente Prudente", uf: "SP" },
   { id: 12, name: "ANADIPS", uf: "AP" },
+  { id: 13, name: "IFRN", uf: "RN" },
+  { id: 14, name: "IFPI", uf: "PI" },
 ] as const
 
+/** Catálogo de referência (fallback). A fonte primária são os dados do ODK. */
 export const PROJECT_CITIES: Record<number, { city: string; uf: string }[]> = {
   5: [
     { city: "Corumbá", uf: "MS" },
@@ -230,7 +260,7 @@ export const PROJECT_CITIES: Record<number, { city: string; uf: string }[]> = {
     { city: "Estrutural", uf: "DF" },
   ],
   7: [{ city: "Dourados", uf: "MS" }],
-  8: [{ city: "Vitória de Santo Antônio", uf: "PE" }],
+  8: [{ city: "Vitória de Santo Antão", uf: "PE" }],
   9: [{ city: "Jundiaí", uf: "SP" }],
   10: [{ city: "Guarulhos", uf: "SP" }],
   11: [
