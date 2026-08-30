@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
+import { InstallPrompt } from "@/components/InstallPrompt"
 
 export default async function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default async function DashboardLayout({
         userProjectId={session.user.projectId}
       />
       <div className="pt-[104px] md:pt-16">{children}</div>
+      <InstallPrompt />
     </>
   )
 }

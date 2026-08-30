@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: "Envelhecer nos Territórios — Dashboard",
   description: "Dashboard de acompanhamento do Projeto Envelhecer nos Territórios — MDHC",
   applicationName: "Envelhecer nos Territórios",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     title: "Envelhecer nos Territórios",

@@ -16,7 +16,7 @@ interface TabsProps {
 
 export function Tabs({ items, active }: TabsProps) {
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b" aria-label="Seções do dashboard">
+    <nav className="flex gap-1 overflow-x-auto overflow-y-hidden border-b" aria-label="Seções do dashboard">
       {items.map((t) => (
         <Link
           key={t.id}
