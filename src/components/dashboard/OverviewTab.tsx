@@ -69,9 +69,7 @@ export function OverviewTab({ projectId }: { projectId?: number }) {
         <SubmissionsWidget projectId={projectId} />
         <CityDistributionWidget projectId={projectId} />
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CityMapWidget projectId={projectId} />
-      </div>
+      <CityMapWidget projectId={projectId} />
     </div>
   )
 }

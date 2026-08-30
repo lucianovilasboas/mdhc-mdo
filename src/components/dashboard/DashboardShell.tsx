@@ -12,8 +12,8 @@ import type { ActiveProject } from "@/lib/odk"
 const TABS = [
   { id: "overview", label: "Visão Geral" },
   { id: "agentes", label: "Agentes & Projetos" },
-  { id: "perfil", label: "Formulário 1 — Perfil" },
-  { id: "direitos", label: "Formulário 2 — Direitos" },
+  { id: "perfil", label: "Perfil das pessoas idosas" },
+  { id: "direitos", label: "Violação de direitos" },
 ]
 
 export function DashboardShell({ selectedProjectId }: { selectedProjectId?: number }) {
@@ -42,7 +42,9 @@ export function DashboardShell({ selectedProjectId }: { selectedProjectId?: numb
         </p>
       )}
 
-      <Tabs items={TABS.map((t) => ({ ...t, href: hrefFor(t.id) }))} active={tab} />
+      <div className="sticky top-[104px] md:top-16 z-40 -mx-4 px-4 bg-background border-b">
+        <Tabs items={TABS.map((t) => ({ ...t, href: hrefFor(t.id) }))} active={tab} />
+      </div>
 
       {tab === "overview" && <OverviewTab projectId={selectedProjectId} />}
       {tab === "agentes" && <AgentsProjectsTab projectId={selectedProjectId} />}
