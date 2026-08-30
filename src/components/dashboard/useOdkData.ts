@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 const CACHE_TTL = 5 * 60 * 1000
 const cache = new Map<string, { data: unknown; ts: number }>()
@@ -20,39 +20,38 @@ export function useAsync<T>(url: string | null) {
   const [loading, setLoading] = useState(url !== null && !initial.fresh)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!url) return
-    const cached = cache.get(url)
-    if (cached && Date.now() - cached.ts < CACHE_TTL) return
-
-    let cancelled = false
-    const ctrl = new AbortController()
-    fetch(url, { signal: ctrl.signal })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
-      .then((json) => {
+  const carregar = useCallback(
+    async (force = false) => {
+      if (!url) return
+      if (!force) {
+        const cached = cache.get(url)
+        if (cached && Date.now() - cached.ts < CACHE_TTL) return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(url, { cache: "no-store" })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = await res.json()
         cache.set(url, { data: json, ts: Date.now() })
-        if (!cancelled) {
-          setData(json as T)
-          setError(null)
-          setLoading(false)
-        }
-      })
-      .catch((e) => {
-        if (!cancelled && (e as Error)?.name !== "AbortError") {
-          setError(e instanceof Error ? e.message : "Erro ao carregar")
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-      ctrl.abort()
-    }
-  }, [url])
+        setData(json as T)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro ao carregar")
+      } finally {
+        setLoading(false)
+      }
+    },
+    [url],
+  )
 
-  return { data, loading, error }
+  useEffect(() => {
+    // Deferido 1 tick: o carregamento é assíncrono e dispara setState;
+    // chamá-lo síncrono no corpo do effect viola react-hooks/set-state-in-effect.
+    const timer = setTimeout(() => carregar(), 0)
+    return () => clearTimeout(timer)
+  }, [carregar])
+
+  return { data, loading, error, recarregar: () => carregar(true) }
 }
 
 export function useOdkData<T>(view: string, projectId?: number) {
