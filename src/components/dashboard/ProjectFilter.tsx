@@ -1,7 +1,6 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import Link from "next/link"
 import { useEffect, useState } from "react"
 import type { ActiveProject } from "@/lib/odk"
 
@@ -37,8 +36,11 @@ export function ProjectFilter({ allowedProjectId }: ProjectFilterProps) {
       value={current}
       onChange={(e) => {
         const v = e.target.value
-        const url = v ? `/dashboard?projeto=${v}` : "/dashboard"
-        window.location.href = url
+        const params = new URLSearchParams(searchParams.toString())
+        if (v) params.set("projeto", v)
+        else params.delete("projeto")
+        const qs = params.toString()
+        window.location.href = qs ? `/dashboard?${qs}` : "/dashboard"
       }}
       className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >

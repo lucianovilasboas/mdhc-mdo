@@ -5,14 +5,7 @@ import { ExpandableSection } from "@/components/ui/expandable-section"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
-import type { RightsIndicator, MultiSelectIndicator, CityMultiSelectEntry } from "@/types"
-
-interface CityRightsEntry {
-  city: string
-  projectName: string
-  projectId: number
-  indicators: RightsIndicator[]
-}
+import type { MultiSelectIndicator, CityMultiSelectEntry, CityRightsEntry } from "@/types"
 
 interface CityRightsIndicatorsProps {
   data: CityRightsEntry[]

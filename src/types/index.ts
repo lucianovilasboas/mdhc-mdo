@@ -13,6 +13,24 @@ export interface SubmissionSummary {
   parte2: number
 }
 
+export interface KpiOverview {
+  totalIdosos: number
+  totalSubmissions: number
+  totalParte1: number
+  totalParte2: number
+  totalProjects: number
+  totalCities: number
+  totalAgents: number
+  lastSubmissionDate: string | null
+  perProject: Record<number, {
+    submissions: number
+    parte1: number
+    parte2: number
+    agents: number
+    idosos: number
+  }>
+}
+
 export interface CityStat {
   projectId: number
   projectName: string
@@ -79,6 +97,13 @@ export interface CityMultiSelectEntry {
   projectName: string
   projectId: number
   indicators: MultiSelectIndicator[]
+}
+
+export interface CityRightsEntry {
+  city: string
+  projectName: string
+  projectId: number
+  indicators: RightsIndicator[]
 }
 
 export interface ODataSubmission {
