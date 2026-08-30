@@ -71,14 +71,16 @@ export default async function DashboardPage({
 
   const projectRows = allProjects.map((p) => {
     const info = cityByProject[p.id]
+    const parte1 = kpis?.perProject?.[p.id]?.parte1 ?? 0
+    const parte2 = kpis?.perProject?.[p.id]?.parte2 ?? 0
     return {
       id: p.id,
       name: p.name,
       cities: info?.cities || "",
       uf: info?.ufs || p.uf,
-      status: (p.id === 5 || p.id === 6 ? "ativo" : "implantacao") as "ativo" | "implantacao",
-      parte1: kpis?.perProject?.[p.id]?.parte1 ?? 0,
-      parte2: kpis?.perProject?.[p.id]?.parte2 ?? 0,
+      status: (parte1 + parte2 > 0 ? "ativo" : "implantacao") as "ativo" | "implantacao",
+      parte1,
+      parte2,
       agents: kpis?.perProject?.[p.id]?.agents ?? 0,
       idosos: kpis?.perProject?.[p.id]?.idosos ?? 0,
     }
