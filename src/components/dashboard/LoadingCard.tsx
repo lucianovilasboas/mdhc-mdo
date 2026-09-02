@@ -61,11 +61,11 @@ export function ErrorCard({ label = "Não foi possível carregar", message, onRe
 
 export function KpiCardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 animate-pulse">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 animate-pulse">
       {Array.from({ length: 7 }).map((_, i) => (
         <Card key={i}>
-          <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-            <div className="h-7 w-7 rounded-full bg-muted" />
+          <CardContent className="flex flex-col items-center gap-2 pt-5 text-center">
+            <div className="h-12 w-12 rounded-xl bg-muted" />
             <div className="h-6 w-16 rounded bg-muted" />
             <div className="h-3 w-20 rounded bg-muted" />
           </CardContent>

@@ -18,6 +18,18 @@ export const PALETA_CORES = {
   laranja: "#ea580c",
   violeta: "#7c3aed",
   fucsia: "#db2777",
+  bronze: "#8b5e34",
+} as const
+
+/** Cor de acento por KPI do topo (fonte única — não hardcodar hex no componente). */
+export const KPI_CORES = {
+  idosos: PALETA_CORES.bronze,
+  agentes: PALETA_CORES.azul,
+  projetos: PALETA_CORES.roxo,
+  municipios: PALETA_CORES.verde,
+  ufs: PALETA_CORES.laranja,
+  submissoes: PALETA_CORES.teal,
+  ultima: PALETA_CORES.rosa,
 } as const
 
 /** Sequência cíclica para donuts / barras com muitas categorias. */

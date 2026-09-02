@@ -1,7 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { ElderlyWomanIcon } from "@/components/dashboard/ElderlyWomanIcon"
 import { Users, Building2, MapPin, Flag, FileText, Clock } from "lucide-react"
-import type { ReactNode } from "react"
+import { KPI_CORES } from "@/types"
+import type { ComponentType } from "react"
 
 interface KpiCardsProps {
   totalIdosos: number
@@ -11,6 +12,13 @@ interface KpiCardsProps {
   totalUfs: number
   totalForms: number
   lastSubmission: string | null
+}
+
+interface KpiItem {
+  label: string
+  value: string | number
+  icon: ComponentType<{ className?: string }>
+  color: string
 }
 
 function formatDate(iso: string | null): string {
@@ -23,29 +31,42 @@ function formatDate(iso: string | null): string {
 }
 
 export function KpiCards(props: KpiCardsProps) {
-  const items: { label: string; value: string | number; icon: ReactNode }[] = [
-    { label: "Pessoas Idosas Entrevistadas", value: props.totalIdosos, icon: <ElderlyWomanIcon className="w-7 h-7" /> },
-    { label: "Agentes de Campo", value: props.totalAgents, icon: <Users className="w-7 h-7" /> },
-    { label: "Projetos", value: props.totalProjects, icon: <Building2 className="w-7 h-7" /> },
-    { label: "Municípios", value: props.totalCities, icon: <MapPin className="w-7 h-7" /> },
-    { label: "Estados/DF", value: props.totalUfs, icon: <Flag className="w-7 h-7" /> },
-    { label: "Submissões", value: props.totalForms, icon: <FileText className="w-7 h-7" /> },
-    { label: "Última Submissão", value: formatDate(props.lastSubmission), icon: <Clock className="w-7 h-7" /> },
+  const items: KpiItem[] = [
+    { label: "Pessoas Idosas Entrevistadas", value: props.totalIdosos, icon: ElderlyWomanIcon, color: KPI_CORES.idosos },
+    { label: "Agentes de Campo", value: props.totalAgents, icon: Users, color: KPI_CORES.agentes },
+    { label: "Projetos", value: props.totalProjects, icon: Building2, color: KPI_CORES.projetos },
+    { label: "Municípios", value: props.totalCities, icon: MapPin, color: KPI_CORES.municipios },
+    { label: "Estados/DF", value: props.totalUfs, icon: Flag, color: KPI_CORES.ufs },
+    { label: "Submissões", value: props.totalForms, icon: FileText, color: KPI_CORES.submissoes },
+    { label: "Última Submissão", value: formatDate(props.lastSubmission), icon: Clock, color: KPI_CORES.ultima },
   ]
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-      {items.map((item) => (
-        <Card key={item.label}>
-          <CardContent className="p-4 flex flex-col items-center text-center gap-1">
-            <span className="text-2xl">{item.icon}</span>
-            <span className={`font-bold ${typeof item.value === "number" ? "text-2xl" : "text-sm"}`}>
-              {typeof item.value === "number" ? item.value.toLocaleString("pt-BR") : item.value}
-            </span>
-            <span className="text-xs text-muted-foreground">{item.label}</span>
-          </CardContent>
-        </Card>
-      ))}
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+      {items.map((item) => {
+        const Icon = item.icon
+        return (
+          <Card key={item.label} className="relative overflow-hidden">
+            <span
+              aria-hidden
+              className="absolute inset-x-0 top-0 h-1"
+              style={{ background: `linear-gradient(90deg, ${item.color}, ${item.color}00)` }}
+            />
+            <CardContent className="flex flex-col items-center gap-2 pt-5 text-center">
+              <span
+                className="flex h-12 w-12 items-center justify-center rounded-xl"
+                style={{ backgroundColor: `${item.color}1f`, color: item.color }}
+              >
+                <Icon className="h-6 w-6" />
+              </span>
+              <span className={`font-bold leading-none ${typeof item.value === "number" ? "text-2xl" : "text-sm"}`}>
+                {typeof item.value === "number" ? item.value.toLocaleString("pt-BR") : item.value}
+              </span>
+              <span className="text-xs leading-tight text-muted-foreground">{item.label}</span>
+            </CardContent>
+          </Card>
+        )
+      })}
     </div>
   )
 }

@@ -18,7 +18,7 @@ export default async function DashboardLayout({
         userRole={session.user.role}
         userProjectId={session.user.projectId}
       />
-      <div className="pt-[104px] md:pt-16">{children}</div>
+      <div className="pt-[108px] sm:pt-[116px] md:pt-16">{children}</div>
       <InstallPrompt />
     </>
   )
