@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, Suspense } from "react"
+import Image from "next/image"
 import { signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { ProjectFilter } from "@/components/dashboard/ProjectFilter"
-import { ElderlyWomanIcon } from "@/components/dashboard/ElderlyWomanIcon"
 import { Menu, X, LogOut } from "lucide-react"
 
 interface DashboardHeaderProps {
@@ -27,8 +27,14 @@ export function DashboardHeader({ userName, userRole, userProjectId }: Dashboard
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:h-16">
           {/* Logo + título */}
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 sm:h-11 sm:w-11">
-              <ElderlyWomanIcon className="h-7 w-7 sm:h-8 sm:w-8" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm sm:h-11 sm:w-11">
+              <Image
+                src="/hero-image.png"
+                alt="Logo Envelhecer nos Territórios"
+                width={1200}
+                height={1200}
+                className="h-full w-full object-contain"
+              />
             </span>
             <div className="min-w-0">
               <h1 className="truncate text-sm font-bold leading-tight text-white sm:text-lg">
